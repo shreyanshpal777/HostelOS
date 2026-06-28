@@ -1,89 +1,64 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { apiRequest, oauthUrl } from '@/lib/api';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-  // We keep the exact same state names so your other files don't break!
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
-  const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [appPublicSettings, setAppPublicSettings] = useState(null);
+  const [authError, setAuthError] = useState(null);
 
-  useEffect(() => {
-    checkAppState();
+  const checkUserAuth = useCallback(async () => {
+    setIsLoadingAuth(true);
+    try {
+      const response = await apiRequest('/auth/me');
+      setUser(response.data);
+      setAuthError(null);
+      return response.data;
+    } catch (error) {
+      setUser(null);
+      if (error.status !== 401) setAuthError({ type: 'auth_error', message: error.message });
+      return null;
+    } finally {
+      setIsLoadingAuth(false);
+      setAuthChecked(true);
+    }
   }, []);
 
-  const checkAppState = async () => {
-    // 1. Fake loading the app settings
-    setIsLoadingPublicSettings(true);
-    setAppPublicSettings({ name: "My Local App", isPublic: true });
-    setIsLoadingPublicSettings(false);
-    
-    // 2. Immediately trigger the fake user login check
-    await checkUserAuth();
-  };
+  useEffect(() => { checkUserAuth(); }, [checkUserAuth]);
 
-  const checkUserAuth = async () => {
-    setIsLoadingAuth(true);
+  const login = useCallback(async (email, password) => {
+    const response = await apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    setUser(response.data);
+    setAuthError(null);
+    return response.data;
+  }, []);
 
-    // --- MOCK LOGIN TOGGLE ---
-    // Change this to 'false' if you want to test how your UI looks to logged-out users
-    const mockIsLoggedIn = true; 
+  const register = useCallback(async (name, email, password) => {
+    const response = await apiRequest('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) });
+    setUser(response.data);
+    setAuthError(null);
+    return response.data;
+  }, []);
 
-    if (mockIsLoggedIn) {
-      setUser({ 
-        id: "mock-user-123", 
-        name: "Local Admin", 
-        email: "admin@localhost.com",
-        role: "admin"
-      });
-      setIsAuthenticated(true);
-    } else {
-      setUser(null);
-      setIsAuthenticated(false);
-    }
+  const logout = useCallback(async () => {
+    try { await apiRequest('/auth/logout', { method: 'POST' }); } finally { setUser(null); }
+  }, []);
 
-    setIsLoadingAuth(false);
-    setAuthChecked(true);
-  };
+  const startOAuth = useCallback((provider) => { window.location.assign(oauthUrl(provider)); }, []);
+  const value = useMemo(() => ({
+    user, isAuthenticated: Boolean(user), isLoadingAuth, isLoadingPublicSettings: false,
+    authError, appPublicSettings: { name: 'HostelOS', isPublic: true }, authChecked,
+    login, register, logout, startOAuth, checkUserAuth, checkAppState: checkUserAuth,
+    navigateToLogin: () => window.location.assign('/login')
+  }), [user, isLoadingAuth, authError, authChecked, login, register, logout, startOAuth, checkUserAuth]);
 
-  const logout = () => {
-    console.log("Mock Logout Clicked!");
-    setUser(null);
-    setIsAuthenticated(false);
-  };
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
-  const navigateToLogin = () => {
-    console.log("Mock Redirect to Login!");
-    // Later, you will use react-router-dom here, like: navigate('/login')
-  };
-
-  return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
-      isLoadingAuth,
-      isLoadingPublicSettings,
-      authError,
-      appPublicSettings,
-      authChecked,
-      logout,
-      navigateToLogin,
-      checkUserAuth,
-      checkAppState
-    }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
-};
+}

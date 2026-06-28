@@ -16,7 +16,7 @@ const importBatchSchema = new mongoose.Schema(
     ],
     status: { type: String, enum: ['processing', 'completed', 'failed'], default: 'processing' }
   },
-  { timestamps: true }
+  { timestamps: true, suppressReservedKeysWarning: true }
 );
 
 export const ImportBatch = mongoose.model('ImportBatch', importBatchSchema);
