@@ -6,8 +6,13 @@ import { z } from 'zod';
 import { ImportBatch } from '../models/ImportBatch.js';
 import { User } from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { requireAuth } from './auth.routes.js';
+import { requireRole } from '../middleware/role.js';
 
 export const usersRouter = Router();
+
+usersRouter.use(requireAuth);
+usersRouter.use(requireRole(['admin', 'leader', 'co_leader']));
 const roles = ['student', 'co_leader', 'leader', 'admin'];
 const text = z.preprocess((v) => (v === '' || v == null ? undefined : String(v).trim()), z.string().optional());
 const objectId = z.string().refine(mongoose.Types.ObjectId.isValid, 'Invalid MongoDB ObjectId');
@@ -74,7 +79,7 @@ usersRouter.get('/imports', asyncHandler(async (req, res) => {
 }));
 usersRouter.post('/import', upload.single('file'), asyncHandler(async (req, res) => {
   if (!req.file) throw Object.assign(new Error('Excel or CSV file is required in the file field'), { statusCode: 400 });
-  const uploadedBy = objectId.parse(req.body.uploadedBy);
+  const uploadedBy = req.body.uploadedBy ? objectId.parse(req.body.uploadedBy) : req.auth.userId;
   const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = sheet ? XLSX.utils.sheet_to_json(sheet, { defval: '' }) : [];

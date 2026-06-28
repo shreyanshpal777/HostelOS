@@ -22,9 +22,12 @@ import {
   Sun,
   Tags,
   UsersRound,
-  Zap
+  Zap,
+  CheckSquare,
+  FileSpreadsheet
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/lib/AuthContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
@@ -35,7 +38,17 @@ const tools = [
     endpoint: 'POST /api/ai/tasks/categorize',
     icon: ClipboardList,
     headline: 'Auto-categorize hostel work and suggest the best co-leader.',
-    sample: 'Fix broken geyser on Floor 2'
+    sample: 'Fix broken geyser on Floor 2',
+    roles: ['admin', 'leader', 'co_leader']
+  },
+  {
+    id: 'create_task',
+    label: 'Create Task',
+    endpoint: 'POST /api/tasks',
+    icon: CheckSquare,
+    headline: 'Create and assign a new task to students, floors, or rooms.',
+    sample: 'Clean common room',
+    roles: ['admin', 'leader', 'co_leader']
   },
   {
     id: 'complaint',
@@ -43,7 +56,8 @@ const tools = [
     endpoint: 'POST /api/ai/complaints/analyze',
     icon: AlertTriangle,
     headline: 'Detect urgency, sentiment, and repeated conflict patterns.',
-    sample: 'No water on floor 2 for two hours'
+    sample: 'No water on floor 2 for two hours',
+    roles: ['admin', 'leader', 'co_leader']
   },
   {
     id: 'resources',
@@ -51,7 +65,8 @@ const tools = [
     endpoint: 'POST /api/ai/resources/recommend',
     icon: GraduationCap,
     headline: 'Recommend education resources by branch, room, floor, and interests.',
-    sample: 'CSE students studying DSA'
+    sample: 'CSE students studying DSA',
+    roles: ['admin', 'leader', 'co_leader', 'student']
   },
   {
     id: 'ask',
@@ -59,7 +74,8 @@ const tools = [
     endpoint: 'POST /api/ai/ask',
     icon: FileQuestion,
     headline: 'Answer student questions from official hostel documents.',
-    sample: 'When is the mess bill due?'
+    sample: 'When is the mess bill due?',
+    roles: ['admin', 'leader', 'co_leader', 'student']
   },
   {
     id: 'embedding',
@@ -67,7 +83,17 @@ const tools = [
     endpoint: 'POST /api/ai/embeddings',
     icon: Network,
     headline: 'Convert hostel rules and notices into searchable AI context.',
-    sample: 'Hostel rulebook text'
+    sample: 'Hostel rulebook text',
+    roles: ['admin']
+  },
+  {
+    id: 'excel_upload',
+    label: 'Resident Import',
+    endpoint: 'POST /api/users/import',
+    icon: FileSpreadsheet,
+    headline: 'Bulk import residents from an Excel, CSV, or Spreadsheet file.',
+    sample: 'residents.xlsx',
+    roles: ['admin', 'leader', 'co_leader']
   }
 ];
 
@@ -94,6 +120,16 @@ const initialForms = {
     roomNumber: '204',
     dueAt: ''
   },
+  create_task: {
+    title: 'Clean common room',
+    description: 'Please ensure all trash is removed and floors are swept.',
+    category: 'cleaning',
+    priority: 'normal',
+    assignedToFloors: '',
+    assignedToRooms: '',
+    assignedToUsers: '',
+    dueAt: ''
+  },
   complaint: {
     complaintId: '',
     title: 'Water shortage',
@@ -116,6 +152,9 @@ const initialForms = {
   },
   embedding: {
     text: 'Hostel students must submit mess bills before the due date.'
+  },
+  excel_upload: {
+    file: null
   }
 };
 
@@ -140,6 +179,19 @@ function buildPayload(activeTool, form) {
       floor: toNumber(form.floor),
       roomNumber: form.roomNumber,
       dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : ''
+    });
+  }
+
+  if (activeTool === 'create_task') {
+    return compactObject({
+      title: form.title,
+      description: form.description,
+      category: form.category,
+      priority: form.priority,
+      assignedToFloors: form.assignedToFloors ? form.assignedToFloors.split(',').map(toNumber).filter((x) => x !== undefined) : [],
+      assignedToRooms: form.assignedToRooms ? form.assignedToRooms.split(',').map((x) => x.trim()).filter(Boolean) : [],
+      assignedToUsers: form.assignedToUsers ? form.assignedToUsers.split(',').map((x) => x.trim()).filter(Boolean) : [],
+      dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : undefined
     });
   }
 
@@ -179,6 +231,10 @@ function buildPayload(activeTool, form) {
     });
   }
 
+  if (activeTool === 'excel_upload') {
+    return null;
+  }
+
   return compactObject({ text: form.text });
 }
 
@@ -188,7 +244,9 @@ function endpointPath(toolId) {
     complaint: '/ai/complaints/analyze',
     resources: '/ai/resources/recommend',
     ask: '/ai/ask',
-    embedding: '/ai/embeddings'
+    embedding: '/ai/embeddings',
+    create_task: '/tasks',
+    excel_upload: '/users/import'
   }[toolId];
 }
 
@@ -216,12 +274,37 @@ function JsonBlock({ value }) {
   return <pre className="json-block">{JSON.stringify(value, null, 2)}</pre>;
 }
 
-function AuthBox() {
+function AuthBox({ user, onLogout }) {
+  if (!user) {
+    return (
+      <div className="auth-box" aria-label="Authorization actions">
+        <LockKeyhole size={17} aria-hidden="true" />
+        <button type="button">Login</button>
+        <button className="auth-primary" type="button">Sign up</button>
+      </div>
+    );
+  }
+
+  const initials = user.name
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+    : 'U';
+
   return (
-    <div className="auth-box" aria-label="Authorization actions">
-      <LockKeyhole size={17} aria-hidden="true" />
-      <button type="button">Login</button>
-      <button className="auth-primary" type="button">Sign up</button>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="user-profile-badge" aria-label={`Logged in as ${user.name}`}>
+        <div className="user-avatar">{initials}</div>
+        <div className="user-info">
+          <span className="user-name">{user.name}</span>
+          <span className="user-role">{user.role}</span>
+        </div>
+      </div>
+      <button className="logout-button" type="button" onClick={onLogout}>
+        Logout
+      </button>
     </div>
   );
 }
@@ -341,11 +424,11 @@ function LandingPage({ openTool }) {
   );
 }
 
-function ConsoleView({ activeTool, setActiveTool, forms, updateForm, payload, selectedTool, submitActiveTool, isSubmitting, result, error }) {
+function ConsoleView({ activeTool, setActiveTool, forms, updateForm, payload, selectedTool, submitActiveTool, isSubmitting, result, error, allowedTools }) {
   return (
     <section className="console-shell">
       <aside className="tool-rail" aria-label="AI endpoints">
-        {tools.map((tool) => {
+        {allowedTools.map((tool) => {
           const Icon = tool.icon;
 
           return (
@@ -385,6 +468,40 @@ function ConsoleView({ activeTool, setActiveTool, forms, updateForm, payload, se
             </>
           )}
 
+          {activeTool === 'create_task' && (
+            <>
+              <Field label="Task Title"><input required value={forms.create_task.title} onChange={(event) => updateForm('title', event.target.value)} /></Field>
+              <Field label="Description"><textarea rows="4" value={forms.create_task.description} onChange={(event) => updateForm('description', event.target.value)} /></Field>
+              <div className="field-grid two">
+                <Field label="Category">
+                  <select value={forms.create_task.category} onChange={(event) => updateForm('category', event.target.value)}>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="education">Education</option>
+                    <option value="cleaning">Cleaning</option>
+                    <option value="mess">Mess</option>
+                    <option value="utility">Utility</option>
+                    <option value="event">Event</option>
+                    <option value="admin">Admin</option>
+                    <option value="other">Other</option>
+                  </select>
+                </Field>
+                <Field label="Priority">
+                  <select value={forms.create_task.priority} onChange={(event) => updateForm('priority', event.target.value)}>
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </Field>
+              </div>
+              <div className="field-grid">
+                <Field label="Assigned Floors (comma-separated)"><input placeholder="e.g. 1, 2" value={forms.create_task.assignedToFloors} onChange={(event) => updateForm('assignedToFloors', event.target.value)} /></Field>
+                <Field label="Assigned Rooms (comma-separated)"><input placeholder="e.g. 101, 102" value={forms.create_task.assignedToRooms} onChange={(event) => updateForm('assignedToRooms', event.target.value)} /></Field>
+                <Field label="Due Date"><input type="datetime-local" value={forms.create_task.dueAt} onChange={(event) => updateForm('dueAt', event.target.value)} /></Field>
+              </div>
+            </>
+          )}
+
           {activeTool === 'complaint' && (
             <>
               <Field label="Complaint ID"><input value={forms.complaint.complaintId} onChange={(event) => updateForm('complaintId', event.target.value)} /></Field>
@@ -420,6 +537,29 @@ function ConsoleView({ activeTool, setActiveTool, forms, updateForm, payload, se
 
           {activeTool === 'embedding' && (
             <Field label="Text"><textarea required rows="8" value={forms.embedding.text} onChange={(event) => updateForm('text', event.target.value)} /></Field>
+          )}
+
+          {activeTool === 'excel_upload' && (
+            <>
+              <div className="file-upload-zone">
+                <FileSpreadsheet size={40} className="upload-icon" />
+                <p>Drag and drop your spreadsheet here, or click to browse</p>
+                <span className="file-types">Supports .xlsx, .xls, .csv</span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+                    updateForm('file', file);
+                  }}
+                />
+                {forms.excel_upload.file && (
+                  <div className="selected-file">
+                    <strong>Selected:</strong> {forms.excel_upload.file.name} ({(forms.excel_upload.file.size / 1024).toFixed(1)} KB)
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
           <div className="form-actions">
@@ -464,6 +604,7 @@ function ConsoleView({ activeTool, setActiveTool, forms, updateForm, payload, se
 }
 
 export default function Console() {
+  const { user, logout } = useAuth();
   const [view, setView] = useState('home');
   const [activeTool, setActiveTool] = useState('task');
   const [forms, setForms] = useState(initialForms);
@@ -473,7 +614,19 @@ export default function Console() {
   const [apiStatus, setApiStatus] = useState('checking');
   const [theme, setTheme] = useState(() => localStorage.getItem('hostelly-theme') || 'light');
 
-  const selectedTool = useMemo(() => tools.find((tool) => tool.id === activeTool), [activeTool]);
+  const allowedTools = useMemo(() => tools.filter((tool) => tool.roles.includes(user?.role || 'student')), [user]);
+
+  // Ensure active tool is allowed for the user's role
+  useEffect(() => {
+    if (user && allowedTools.length > 0) {
+      const isAllowed = allowedTools.some((tool) => tool.id === activeTool);
+      if (!isAllowed) {
+        setActiveTool(allowedTools[0].id);
+      }
+    }
+  }, [user, allowedTools, activeTool]);
+
+  const selectedTool = useMemo(() => tools.find((tool) => tool.id === activeTool) || allowedTools[0] || tools[0], [activeTool, allowedTools]);
   const payload = useMemo(() => buildPayload(activeTool, forms[activeTool]), [activeTool, forms]);
 
   useEffect(() => {
@@ -503,6 +656,7 @@ export default function Console() {
   }, []);
 
   function openTool(toolId) {
+    if (!allowedTools.some(t => t.id === toolId)) return;
     setActiveTool(toolId);
     setView('console');
     setResult(null);
@@ -532,7 +686,23 @@ export default function Console() {
     setIsSubmitting(true);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}${endpointPath(activeTool)}`, payload);
+      let response;
+      if (activeTool === 'excel_upload') {
+        const formData = new FormData();
+        if (!forms.excel_upload.file) {
+          throw new Error('Please select an Excel or CSV file to upload.');
+        }
+        formData.append('file', forms.excel_upload.file);
+        
+        response = await axios.post(`${API_BASE_URL}${endpointPath(activeTool)}`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials: true
+        });
+      } else {
+        response = await axios.post(`${API_BASE_URL}${endpointPath(activeTool)}`, payload, {
+          withCredentials: true
+        });
+      }
       setResult(response.data);
     } catch (requestError) {
       const message =
@@ -578,7 +748,7 @@ export default function Console() {
           >
             {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
           </button>
-          <AuthBox />
+          <AuthBox user={user} onLogout={logout} />
         </div>
       </header>
 
@@ -596,6 +766,7 @@ export default function Console() {
           isSubmitting={isSubmitting}
           result={result}
           error={error}
+          allowedTools={allowedTools}
         />
       )}
     </main>

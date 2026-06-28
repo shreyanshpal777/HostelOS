@@ -7,6 +7,7 @@ import { aiRouter } from './routes/ai.routes.js';
 import { authRouter } from './routes/auth.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { usersRouter } from './routes/users.routes.js';
+import { tasksRouter } from './routes/tasks.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 export const app = express();
@@ -33,6 +34,7 @@ app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/tasks', tasksRouter);
 
 app.use((req, res) => {
   res.status(404).json({

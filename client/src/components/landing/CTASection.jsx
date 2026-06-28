@@ -23,7 +23,7 @@ export default function CTASection() {
             Ready to Transform?
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-heading font-bold text-white mb-6 leading-tight">
-            Ready to Modernize Your<br />Student Housing Operations?
+            Ready to Modernize Your<br />Student Hostel Operations?
           </h2>
           <p className="text-lg text-white/70 max-w-2xl mx-auto mb-10">
             Join 150+ institutions that have already automated their hostel management. Start free — no credit card required.

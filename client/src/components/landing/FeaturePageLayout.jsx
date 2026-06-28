@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 
-export default function FeaturePageLayout({ icon: Icon, title, tag, description, color, benefits, useCases, ctaText }) {
+export default function FeaturePageLayout({ icon: Icon, title, tag, description, color, benefits, useCases, ctaText, children }) {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 transition-colors">
       <Navbar />
@@ -32,6 +32,8 @@ export default function FeaturePageLayout({ icon: Icon, title, tag, description,
 
             <p className="text-lg text-gray-500 dark:text-gray-400 leading-relaxed max-w-3xl mb-12">{description}</p>
           </motion.div>
+
+          {children}
 
           <motion.div
             initial={{ opacity: 0, y: 30 }}
