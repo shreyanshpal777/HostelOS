@@ -120,11 +120,22 @@ usersRouter.get('/:id', asyncHandler(async (req, res) => {
 }));
 usersRouter.patch('/:id', asyncHandler(async (req, res) => {
   const { password, ...updates } = updateSchema.parse(req.body);
+  if (updates.role && req.auth.role !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Only admins can modify user roles' });
+  }
   const user = await User.findById(objectId.parse(req.params.id)); if (!user) throw notFound();
   Object.assign(user, updates); if (password) await user.setPassword(password); await user.save();
   res.json({ success: true, data: user });
 }));
-usersRouter.delete('/:id', asyncHandler(async (req, res) => {
+usersRouter.patch('/:id/role', requireRole(['admin']), asyncHandler(async (req, res) => {
+  const { role } = z.object({ role: z.enum(['student', 'co_leader', 'leader', 'admin']) }).parse(req.body);
+  const user = await User.findById(objectId.parse(req.params.id));
+  if (!user) throw notFound();
+  user.role = role;
+  await user.save();
+  res.json({ success: true, data: user });
+}));
+usersRouter.delete('/:id', requireRole(['admin']), asyncHandler(async (req, res) => {
   const user = await User.findByIdAndUpdate(objectId.parse(req.params.id), { isActive: false }, { new: true }).lean(); if (!user) throw notFound();
   res.json({ success: true, data: user, message: 'User deactivated' });
 }));

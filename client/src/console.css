@@ -1009,3 +1009,37 @@ select:focus {
   }
 }
 
+.tool-panel.span-two {
+  grid-column: span 2;
+}
+
+.directory-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.user-table th {
+  padding: 12px 8px;
+  font-weight: 800;
+  border-bottom: 2px solid var(--line);
+  color: var(--text);
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.user-table td {
+  padding: 16px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.user-table tbody tr:hover {
+  background: var(--surface-muted);
+}
+
