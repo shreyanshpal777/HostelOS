@@ -25,8 +25,8 @@ const taskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['draft', 'assigned', 'in_progress', 'submitted', 'verified', 'overdue', 'cancelled'],
-      default: 'draft',
+      enum: ['draft', 'assigned', 'in_progress', 'pending', 'submitted', 'verified', 'completed', 'resolved', 'overdue', 'cancelled'],
+      default: 'assigned',
       index: true
     },
     dueAt: { type: Date, index: true },

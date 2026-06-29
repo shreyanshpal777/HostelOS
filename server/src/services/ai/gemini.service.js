@@ -24,10 +24,10 @@ const complaintAnalysisSchema = z.object({
 });
 
 const resourceRecommendationSchema = z.object({
-  summary: z.string(),
-  recommendedResourceIds: z.array(z.string()).max(10),
-  recommendedTopics: z.array(z.string()).max(8),
-  rationale: z.string()
+  industryInsights: z.string(),
+  learningPlan: z.array(z.string()).length(3),
+  recommendedResourceIds: z.array(z.string()).max(3),
+  searchSuggestions: z.array(z.string()).max(5)
 });
 
 const hostelAnswerSchema = z.object({
@@ -118,25 +118,32 @@ ${JSON.stringify(recentComplaintSignals)}
 }
 
 export async function recommendResourcesWithGemini(profile, resources) {
+  const branch = profile.branch || 'Unknown';
+  const interests = profile.interests || [];
+
   return generateJson(
-    `
-Recommend hostel education resources for this student or group.
-Use only the provided resource IDs.
-
-Return only JSON:
-{
-  "summary": "one sentence",
-  "recommendedResourceIds": ["resource_id"],
-  "recommendedTopics": ["topic"],
-  "rationale": "one sentence"
-}
-
-Learner profile:
-${JSON.stringify(profile)}
-
-Available resources:
+    `You are an expert academic advisor and tech industry mentor. 
+A student in the ${branch} branch is interested in: ${interests.join(', ')}.
+Based on their profile and the available resources below, generate:
+1. Current industry insights (why these interests are relevant today).
+2. A structured, 3-step learning plan.
+3. The top 3 most relevant resources from the provided list.
+Available Resources Database:
 ${JSON.stringify(resources)}
-`,
+
+If the available resources do not perfectly match, suggest general topics they should search for.
+
+Return only JSON conforming strictly to this format:
+{
+  "industryInsights": "a paragraph detailing current industry insights",
+  "learningPlan": [
+    "Step 1 details",
+    "Step 2 details",
+    "Step 3 details"
+  ],
+  "recommendedResourceIds": ["id1", "id2", "id3"],
+  "searchSuggestions": ["suggestion1", "suggestion2"]
+}`,
     resourceRecommendationSchema
   );
 }

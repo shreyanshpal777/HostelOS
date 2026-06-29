@@ -1,440 +1,27 @@
-import './console.css';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
-  AlertTriangle,
-  ArrowRight,
-  Bot,
-  Brain,
-  Building2,
-  CheckCircle2,
-  ClipboardList,
-  FileQuestion,
-  GraduationCap,
   Home,
-  Loader2,
-  LockKeyhole,
-  MessageCircle,
-  Moon,
-  Network,
-  Send,
-  ShieldCheck,
-  Sparkles,
-  Sun,
-  Tags,
+  AlertTriangle,
   UsersRound,
-  Zap,
-  CheckSquare,
+  GraduationCap,
   FileSpreadsheet,
-  Trash2
+  ShieldCheck,
+  LogOut,
+  Moon,
+  Sun,
+  Building2,
+  Trash2,
+  Loader2,
+  Sparkles,
+  CheckCircle2,
+  RefreshCw,
+  Plus
 } from 'lucide-react';
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAuth } from '@/lib/AuthContext';
+import './console.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-
-const tools = [
-  {
-    id: 'task',
-    label: 'Task Intelligence',
-    endpoint: 'POST /api/ai/tasks/categorize',
-    icon: ClipboardList,
-    headline: 'Auto-categorize hostel work and suggest the best co-leader.',
-    sample: 'Fix broken geyser on Floor 2',
-    roles: ['admin', 'leader', 'co_leader']
-  },
-  {
-    id: 'create_task',
-    label: 'Create Task',
-    endpoint: 'POST /api/tasks',
-    icon: CheckSquare,
-    headline: 'Create and assign a new task to students, floors, or rooms.',
-    sample: 'Clean common room',
-    roles: ['admin', 'leader', 'co_leader']
-  },
-  {
-    id: 'complaint',
-    label: 'Complaint Radar',
-    endpoint: 'POST /api/ai/complaints/analyze',
-    icon: AlertTriangle,
-    headline: 'Detect urgency, sentiment, and repeated conflict patterns.',
-    sample: 'No water on floor 2 for two hours',
-    roles: ['admin', 'leader', 'co_leader']
-  },
-  {
-    id: 'resources',
-    label: 'Learning Recommender',
-    endpoint: 'POST /api/ai/resources/recommend',
-    icon: GraduationCap,
-    headline: 'Recommend education resources by branch, room, floor, and interests.',
-    sample: 'CSE students studying DSA',
-    roles: ['admin', 'leader', 'co_leader', 'student']
-  },
-  {
-    id: 'ask',
-    label: 'Hostel Q&A Bot',
-    endpoint: 'POST /api/ai/ask',
-    icon: FileQuestion,
-    headline: 'Answer student questions from official hostel documents.',
-    sample: 'When is the mess bill due?',
-    roles: ['admin', 'leader', 'co_leader', 'student']
-  },
-  {
-    id: 'embedding',
-    label: 'Knowledge Indexing',
-    endpoint: 'POST /api/ai/embeddings',
-    icon: Network,
-    headline: 'Convert hostel rules and notices into searchable AI context.',
-    sample: 'Hostel rulebook text',
-    roles: ['admin']
-  },
-  {
-    id: 'excel_upload',
-    label: 'Resident Import',
-    endpoint: 'POST /api/users/import',
-    icon: FileSpreadsheet,
-    headline: 'Bulk import residents from an Excel, CSV, or Spreadsheet file.',
-    sample: 'residents.xlsx',
-    roles: ['admin', 'leader', 'co_leader']
-  },
-  {
-    id: 'user_directory',
-    label: 'User Directory',
-    endpoint: 'GET /api/users',
-    icon: UsersRound,
-    headline: 'View all hostel residents and manage their roles.',
-    sample: 'all users',
-    roles: ['admin']
-  }
-];
-
-const stats = [
-  { label: 'Residents synced', value: '1,280', icon: UsersRound },
-  { label: 'WhatsApp alerts', value: '18k', icon: MessageCircle },
-  { label: 'AI tasks tagged', value: '4,912', icon: Sparkles },
-  { label: 'Floors coordinated', value: '12', icon: Building2 }
-];
-
-const workflow = [
-  'Import students from Excel and group them by floor, branch, and room.',
-  'Leaders assign tasks while AI tags priority, category, and ownership.',
-  'Students get WhatsApp updates, deadlines, reminders, and official answers.',
-  'Dashboards surface complaints, learning resources, and follow-up signals.'
-];
-
-const initialForms = {
-  task: {
-    taskId: '',
-    title: 'Fix broken geyser on Floor 2',
-    description: 'Students in room 204 have no hot water since morning.',
-    floor: '2',
-    roomNumber: '204',
-    dueAt: ''
-  },
-  create_task: {
-    title: 'Clean common room',
-    description: 'Please ensure all trash is removed and floors are swept.',
-    category: 'cleaning',
-    priority: 'normal',
-    assignedToFloors: '',
-    assignedToRooms: '',
-    assignedToUsers: '',
-    dueAt: ''
-  },
-  complaint: {
-    complaintId: '',
-    title: 'Water shortage',
-    description: 'No water on floor 2 for the last two hours.',
-    floor: '2',
-    roomNumber: '208'
-  },
-  resources: {
-    userId: '',
-    branch: 'CSE',
-    year: '2nd Year',
-    floor: '2',
-    roomNumber: '204',
-    interests: 'dsa, web development',
-    limit: '5'
-  },
-  ask: {
-    question: 'When is the mess bill due?',
-    topK: '5'
-  },
-  embedding: {
-    text: 'Hostel students must submit mess bills before the due date.'
-  },
-  excel_upload: {
-    file: null
-  },
-  user_directory: {}
-};
-
-function compactObject(object) {
-  return Object.fromEntries(
-    Object.entries(object).filter(([, value]) => value !== '' && value !== null && value !== undefined)
-  );
-}
-
-function toNumber(value) {
-  if (value === '') return undefined;
-  const parsed = Number(value);
-  return Number.isNaN(parsed) ? undefined : parsed;
-}
-
-function buildPayload(activeTool, form) {
-  if (activeTool === 'task') {
-    return compactObject({
-      taskId: form.taskId,
-      title: form.title,
-      description: form.description,
-      floor: toNumber(form.floor),
-      roomNumber: form.roomNumber,
-      dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : ''
-    });
-  }
-
-  if (activeTool === 'create_task') {
-    return compactObject({
-      title: form.title,
-      description: form.description,
-      category: form.category,
-      priority: form.priority,
-      assignedToFloors: form.assignedToFloors ? form.assignedToFloors.split(',').map(toNumber).filter((x) => x !== undefined) : [],
-      assignedToRooms: form.assignedToRooms ? form.assignedToRooms.split(',').map((x) => x.trim()).filter(Boolean) : [],
-      assignedToUsers: form.assignedToUsers ? form.assignedToUsers.split(',').map((x) => x.trim()).filter(Boolean) : [],
-      dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : undefined
-    });
-  }
-
-  if (activeTool === 'complaint') {
-    return compactObject({
-      complaintId: form.complaintId,
-      title: form.title,
-      description: form.description,
-      floor: toNumber(form.floor),
-      roomNumber: form.roomNumber
-    });
-  }
-
-  if (activeTool === 'resources') {
-    const profile = compactObject({
-      branch: form.branch,
-      year: form.year,
-      floor: toNumber(form.floor),
-      roomNumber: form.roomNumber,
-      interests: form.interests
-        .split(',')
-        .map((interest) => interest.trim())
-        .filter(Boolean)
-    });
-
-    return compactObject({
-      userId: form.userId,
-      profile: Object.keys(profile).length ? profile : undefined,
-      limit: toNumber(form.limit)
-    });
-  }
-
-  if (activeTool === 'ask') {
-    return compactObject({
-      question: form.question,
-      topK: toNumber(form.topK)
-    });
-  }
-
-  if (activeTool === 'excel_upload' || activeTool === 'user_directory') {
-    return null;
-  }
-
-  return compactObject({ text: form.text });
-}
-
-function endpointPath(toolId) {
-  return {
-    task: '/ai/tasks/categorize',
-    complaint: '/ai/complaints/analyze',
-    resources: '/ai/resources/recommend',
-    ask: '/ai/ask',
-    embedding: '/ai/embeddings',
-    create_task: '/tasks',
-    excel_upload: '/users/import',
-    user_directory: '/users'
-  }[toolId];
-}
-
-function StatusBadge({ status }) {
-  const Icon = status === 'online' ? CheckCircle2 : status === 'checking' ? Loader2 : AlertTriangle;
-
-  return (
-    <span className={`status-badge ${status}`}>
-      <Icon size={15} className={status === 'checking' ? 'spin' : ''} aria-hidden="true" />
-      {status === 'online' ? 'API online' : status === 'checking' ? 'Checking API' : 'API offline'}
-    </span>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function JsonBlock({ value }) {
-  return <pre className="json-block">{JSON.stringify(value, null, 2)}</pre>;
-}
-
-function AuthBox({ user, onLogout }) {
-  if (!user) {
-    return (
-      <div className="auth-box" aria-label="Authorization actions">
-        <LockKeyhole size={17} aria-hidden="true" />
-        <button type="button">Login</button>
-        <button className="auth-primary" type="button">Sign up</button>
-      </div>
-    );
-  }
-
-  const initials = user.name
-    ? user.name
-        .split(' ')
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join('')
-    : 'U';
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-      <div className="user-profile-badge" aria-label={`Logged in as ${user.name}`}>
-        <div className="user-avatar">{initials}</div>
-        <div className="user-info">
-          <span className="user-name">{user.name}</span>
-          <span className="user-role">{user.role}</span>
-        </div>
-      </div>
-      <button className="logout-button" type="button" onClick={onLogout}>
-        Logout
-      </button>
-    </div>
-  );
-}
-
-function LandingPage({ openTool }) {
-  return (
-    <>
-      <section className="hero-section" id="home">
-        <div className="hero-content reveal-up">
-          <div className="hero-kicker">
-            <Zap size={17} aria-hidden="true" />
-            Student housing, automated
-          </div>
-          <h1>The Modern Operating System for Student Housing.</h1>
-          <p>
-            Centralize residents, room operations, WhatsApp communication, learning resources, complaints,
-            and AI-assisted workflows in one calm command center.
-          </p>
-          <div className="hero-actions">
-            <button className="primary-button hero-button" type="button" onClick={() => openTool('task')}>
-              <Sparkles size={18} />
-              Try an AI endpoint
-            </button>
-            <a className="secondary-link" href="#features">
-              Explore features
-              <ArrowRight size={17} />
-            </a>
-          </div>
-        </div>
-
-        <div className="hero-dashboard reveal-up delay-one" aria-label="Hostel management preview">
-          <div className="dashboard-glass-head">
-            <span>HostelPro AI</span>
-            <StatusBadge status="online" />
-          </div>
-          <div className="preview-grid">
-            {stats.map((item) => {
-              const Icon = item.icon;
-              return (
-                <article className="preview-stat" key={item.label}>
-                  <Icon size={20} aria-hidden="true" />
-                  <strong>{item.value}</strong>
-                  <span>{item.label}</span>
-                </article>
-              );
-            })}
-          </div>
-          <div className="signal-panel">
-            <span>Live AI signal</span>
-            <strong>5 repeated water complaints detected on Floor 2</strong>
-            <button type="button" onClick={() => openTool('complaint')}>
-              Analyze now
-              <ArrowRight size={16} />
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="section-band" id="features">
-        <div className="section-heading">
-          <p className="eyebrow">Features</p>
-          <h2>Every module connects to a real endpoint.</h2>
-        </div>
-        <div className="feature-grid">
-          {tools.map((tool, index) => {
-            const Icon = tool.icon;
-            return (
-              <button
-                className="feature-card reveal-up"
-                style={{ animationDelay: `${index * 80}ms` }}
-                key={tool.id}
-                type="button"
-                onClick={() => openTool(tool.id)}
-              >
-                <span className="feature-icon"><Icon size={22} /></span>
-                <strong>{tool.label}</strong>
-                <small>{tool.headline}</small>
-                <em>{tool.endpoint}</em>
-                <span className="feature-link">
-                  Open endpoint
-                  <ArrowRight size={16} />
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="section-band split-band" id="workflow">
-        <div className="section-heading compact-heading">
-          <p className="eyebrow">Workflow</p>
-          <h2>Designed for leaders who need less chasing and more clarity.</h2>
-        </div>
-        <div className="workflow-list">
-          {workflow.map((item, index) => (
-            <article className="workflow-step" key={item}>
-              <span>{String(index + 1).padStart(2, '0')}</span>
-              <p>{item}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="section-band stats-strip" id="overview">
-        {stats.map((item) => {
-          const Icon = item.icon;
-          return (
-            <article key={item.label}>
-              <Icon size={21} aria-hidden="true" />
-              <strong>{item.value}</strong>
-              <span>{item.label}</span>
-            </article>
-          );
-        })}
-      </section>
-    </>
-  );
-}
 
 function RoleDropdownSelect({ userItem, onUpdateRole }) {
   const [updating, setUpdating] = useState(false);
@@ -468,25 +55,16 @@ function RoleDropdownSelect({ userItem, onUpdateRole }) {
         value={currentRole}
         disabled={updating}
         onChange={handleRoleChange}
-        style={{
-          minHeight: '32px',
-          padding: '2px 8px',
-          fontSize: '0.85rem',
-          maxWidth: '120px',
-          background: updating ? 'var(--surface-muted)' : 'var(--surface-strong)',
-          borderColor: isError ? 'var(--warn)' : 'var(--line)',
-          borderRadius: '6px',
-          cursor: updating ? 'not-allowed' : 'pointer'
-        }}
+        className="saas-select"
       >
         <option value="student">Student</option>
         <option value="co_leader">Co-Leader</option>
         <option value="leader">Leader</option>
         <option value="admin">Admin</option>
       </select>
-      {updating && <Loader2 className="spin" size={14} style={{ color: 'var(--accent)' }} />}
+      {updating && <Loader2 className="spin" size={14} style={{ color: '#2563eb' }} />}
       {statusMessage && (
-        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isError ? 'var(--warn)' : 'var(--accent)' }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isError ? 'var(--warn)' : '#2563eb' }}>
           {statusMessage}
         </span>
       )}
@@ -553,295 +131,739 @@ function DeleteUserButton({ userId, onDelete }) {
   );
 }
 
-function ConsoleView({
-  activeTool,
-  setActiveTool,
-  forms,
-  updateForm,
-  payload,
-  selectedTool,
-  submitActiveTool,
-  isSubmitting,
-  result,
-  error,
-  allowedTools,
-  usersList,
-  isLoadingUsers,
-  usersError,
-  onUpdateUserRole,
-  onDeleteUser,
-  onRefreshUsers
-}) {
-  const isUserDirectory = activeTool === 'user_directory';
+function TaskStatusDropdown({ task, userRole, onStatusChange }) {
+  const [updating, setUpdating] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState(task.status);
+  const isLeader = userRole === 'admin' || userRole === 'leader' || userRole === 'co_leader';
+
+  const handleChange = async (e) => {
+    const newStatus = e.target.value;
+    setUpdating(true);
+    const res = await onStatusChange(task._id, newStatus);
+    setUpdating(false);
+    if (res.success) {
+      setCurrentStatus(newStatus);
+    } else {
+      alert(res.error || 'Failed to update status');
+    }
+  };
+
+  if (!isLeader) {
+    return <span className={`badge status-${currentStatus}`}>{currentStatus}</span>;
+  }
 
   return (
-    <section className="console-shell">
-      <aside className="tool-rail" aria-label="AI endpoints">
-        {allowedTools.map((tool) => {
-          const Icon = tool.icon;
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <select
+        value={currentStatus}
+        disabled={updating}
+        onChange={handleChange}
+        className="saas-select"
+        style={{ minHeight: '30px', padding: '2px 8px', fontSize: '0.8rem' }}
+      >
+        <option value="assigned">Assigned</option>
+        <option value="pending">Pending</option>
+        <option value="completed">Completed</option>
+        <option value="resolved">Resolved</option>
+      </select>
+      {updating && <Loader2 className="spin" size={12} style={{ color: '#2563eb' }} />}
+    </div>
+  );
+}
 
-          return (
-            <button
-              className={`tool-button ${activeTool === tool.id ? 'active' : ''}`}
-              key={tool.id}
-              type="button"
-              onClick={() => setActiveTool(tool.id)}
-            >
-              <Icon size={19} aria-hidden="true" />
-              <span>{tool.label}</span>
-            </button>
-          );
-        })}
-      </aside>
+function DashboardOverview({ tasks, users, userRole, isLoading, onRefresh, onStatusChange }) {
+  const activeTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'resolved');
+  const urgentCount = tasks.filter(t => t.priority === 'high' || t.priority === 'urgent').length;
+  const totalResidents = users.length;
 
-      <section className={`tool-panel ${isUserDirectory ? 'span-two' : ''}`}>
-        <div className="panel-header">
-          <div>
-            <p>{selectedTool.endpoint}</p>
-            <h2>{selectedTool.label}</h2>
+  return (
+    <div>
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-info">
+            <span className="stat-label">Active Tasks</span>
+            <span className="stat-value">{activeTasks.length}</span>
           </div>
-          <Sparkles size={24} aria-hidden="true" />
+          <div className="stat-icon" style={{ background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb' }}>
+            <Building2 size={20} />
+          </div>
         </div>
 
-        {!isUserDirectory ? (
-          <form className="endpoint-form" onSubmit={submitActiveTool}>
-            {activeTool === 'task' && (
-              <>
-                <Field label="Task ID"><input value={forms.task.taskId} onChange={(event) => updateForm('taskId', event.target.value)} /></Field>
-                <Field label="Title"><input required value={forms.task.title} onChange={(event) => updateForm('title', event.target.value)} /></Field>
-                <Field label="Description"><textarea rows="4" value={forms.task.description} onChange={(event) => updateForm('description', event.target.value)} /></Field>
-                <div className="field-grid">
-                  <Field label="Floor"><input type="number" value={forms.task.floor} onChange={(event) => updateForm('floor', event.target.value)} /></Field>
-                  <Field label="Room"><input value={forms.task.roomNumber} onChange={(event) => updateForm('roomNumber', event.target.value)} /></Field>
-                  <Field label="Due"><input type="datetime-local" value={forms.task.dueAt} onChange={(event) => updateForm('dueAt', event.target.value)} /></Field>
-                </div>
-              </>
-            )}
+        <div className="stat-card">
+          <div className="stat-info">
+            <span className="stat-label">Urgent Issues</span>
+            <span className="stat-value">{urgentCount}</span>
+          </div>
+          <div className="stat-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
+            <AlertTriangle size={20} />
+          </div>
+        </div>
 
-            {activeTool === 'create_task' && (
-              <>
-                <Field label="Task Title"><input required value={forms.create_task.title} onChange={(event) => updateForm('title', event.target.value)} /></Field>
-                <Field label="Description"><textarea rows="4" value={forms.create_task.description} onChange={(event) => updateForm('description', event.target.value)} /></Field>
-                <div className="field-grid two">
-                  <Field label="Category">
-                    <select value={forms.create_task.category} onChange={(event) => updateForm('category', event.target.value)}>
-                      <option value="maintenance">Maintenance</option>
-                      <option value="education">Education</option>
-                      <option value="cleaning">Cleaning</option>
-                      <option value="mess">Mess</option>
-                      <option value="utility">Utility</option>
-                      <option value="event">Event</option>
-                      <option value="admin">Admin</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </Field>
-                  <Field label="Priority">
-                    <select value={forms.create_task.priority} onChange={(event) => updateForm('priority', event.target.value)}>
-                      <option value="low">Low</option>
-                      <option value="normal">Normal</option>
-                      <option value="high">High</option>
-                      <option value="urgent">Urgent</option>
-                    </select>
-                  </Field>
-                </div>
-                <div className="field-grid">
-                  <Field label="Assigned Floors (comma-separated)"><input placeholder="e.g. 1, 2" value={forms.create_task.assignedToFloors} onChange={(event) => updateForm('assignedToFloors', event.target.value)} /></Field>
-                  <Field label="Assigned Rooms (comma-separated)"><input placeholder="e.g. 101, 102" value={forms.create_task.assignedToRooms} onChange={(event) => updateForm('assignedToRooms', event.target.value)} /></Field>
-                  <Field label="Due Date"><input type="datetime-local" value={forms.create_task.dueAt} onChange={(event) => updateForm('dueAt', event.target.value)} /></Field>
-                </div>
-              </>
-            )}
+        <div className="stat-card">
+          <div className="stat-info">
+            <span className="stat-label">Total Residents</span>
+            <span className="stat-value">{totalResidents}</span>
+          </div>
+          <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+            <UsersRound size={20} />
+          </div>
+        </div>
+      </div>
 
-            {activeTool === 'complaint' && (
-              <>
-                <Field label="Complaint ID"><input value={forms.complaint.complaintId} onChange={(event) => updateForm('complaintId', event.target.value)} /></Field>
-                <Field label="Title"><input required value={forms.complaint.title} onChange={(event) => updateForm('title', event.target.value)} /></Field>
-                <Field label="Description"><textarea required rows="4" value={forms.complaint.description} onChange={(event) => updateForm('description', event.target.value)} /></Field>
-                <div className="field-grid two">
-                  <Field label="Floor"><input type="number" value={forms.complaint.floor} onChange={(event) => updateForm('floor', event.target.value)} /></Field>
-                  <Field label="Room"><input value={forms.complaint.roomNumber} onChange={(event) => updateForm('roomNumber', event.target.value)} /></Field>
-                </div>
-              </>
-            )}
+      <div className="table-card">
+        <div className="table-header">
+          <h2>Recent Tasks & Assignments</h2>
+          <button onClick={onRefresh} className="saas-btn secondary" style={{ minHeight: 'auto', padding: '6px 12px' }}>
+            <RefreshCw size={14} className={isLoading ? 'spin' : ''} />
+            Refresh
+          </button>
+        </div>
 
-            {activeTool === 'resources' && (
-              <>
-                <Field label="User ID"><input value={forms.resources.userId} onChange={(event) => updateForm('userId', event.target.value)} /></Field>
-                <div className="field-grid two">
-                  <Field label="Branch"><input value={forms.resources.branch} onChange={(event) => updateForm('branch', event.target.value)} /></Field>
-                  <Field label="Year"><input value={forms.resources.year} onChange={(event) => updateForm('year', event.target.value)} /></Field>
-                  <Field label="Floor"><input type="number" value={forms.resources.floor} onChange={(event) => updateForm('floor', event.target.value)} /></Field>
-                  <Field label="Room"><input value={forms.resources.roomNumber} onChange={(event) => updateForm('roomNumber', event.target.value)} /></Field>
-                </div>
-                <Field label="Interests"><input value={forms.resources.interests} onChange={(event) => updateForm('interests', event.target.value)} /></Field>
-                <Field label="Limit"><input min="1" max="10" type="number" value={forms.resources.limit} onChange={(event) => updateForm('limit', event.target.value)} /></Field>
-              </>
-            )}
-
-            {activeTool === 'ask' && (
-              <>
-                <Field label="Question"><textarea required rows="5" value={forms.ask.question} onChange={(event) => updateForm('question', event.target.value)} /></Field>
-                <Field label="Context chunks"><input min="1" max="8" type="number" value={forms.ask.topK} onChange={(event) => updateForm('topK', event.target.value)} /></Field>
-              </>
-            )}
-
-            {activeTool === 'embedding' && (
-              <Field label="Text"><textarea required rows="8" value={forms.embedding.text} onChange={(event) => updateForm('text', event.target.value)} /></Field>
-            )}
-
-            {activeTool === 'excel_upload' && (
-              <>
-                <div className="file-upload-zone">
-                  <FileSpreadsheet size={40} className="upload-icon" />
-                  <p>Drag and drop your spreadsheet here, or click to browse</p>
-                  <span className="file-types">Supports .xlsx, .xls, .csv</span>
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] || null;
-                      updateForm('file', file);
-                    }}
-                  />
-                  {forms.excel_upload.file && (
-                    <div className="selected-file">
-                      <strong>Selected:</strong> {forms.excel_upload.file.name} ({(forms.excel_upload.file.size / 1024).toFixed(1)} KB)
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            <div className="form-actions">
-              <button className="primary-button" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
-                <span>{isSubmitting ? 'Running' : 'Run endpoint'}</span>
-              </button>
-            </div>
-          </form>
+        {isLoading ? (
+          <div className="saas-empty">
+            <Loader2 className="spin" size={24} />
+            <span>Loading tasks...</span>
+          </div>
+        ) : tasks.length === 0 ? (
+          <div className="saas-empty">
+            <CheckCircle2 size={32} />
+            <span>All caught up! No active tasks.</span>
+          </div>
         ) : (
-          <div className="directory-container">
-            <div className="directory-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <span className="directory-count">Total Residents: <strong>{usersList.length}</strong></span>
-              <button type="button" className="icon-button" onClick={onRefreshUsers} title="Refresh directory" style={{ border: '1px solid var(--line)', padding: '6px 12px', minHeight: 'auto', width: 'auto', display: 'flex', gap: '6px', alignItems: 'center', fontWeight: 'bold' }}>
-                <Loader2 className={isLoadingUsers ? 'spin' : ''} size={15} />
-                Refresh
-              </button>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Task Title</th>
+                  <th>Category</th>
+                  <th>Urgency</th>
+                  <th>Status</th>
+                  <th>Assigned Location</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasks.slice(0, 5).map((task) => (
+                  <tr key={task._id}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{task.title}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '2px' }}>{task.description}</div>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.85rem', textTransform: 'capitalize' }}>
+                        {task.category || 'General'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge priority-${task.priority}`}>
+                        {task.priority}
+                      </span>
+                    </td>
+                    <td>
+                      <TaskStatusDropdown task={task} userRole={userRole} onStatusChange={onStatusChange} />
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.85rem' }}>
+                        {task.assignedToRooms?.length ? `Rooms ${task.assignedToRooms.join(', ')}` : ''}
+                        {task.assignedToFloors?.length ? ` (Floors ${task.assignedToFloors.join(', ')})` : ''}
+                        {!task.assignedToRooms?.length && !task.assignedToFloors?.length ? 'Everyone' : ''}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ComplaintsBoard({ tasks, userRole, isLoading, onRefresh, onStatusChange }) {
+  return (
+    <div className="table-card">
+      <div className="table-header">
+        <h2>Complaints & Tasks Board</h2>
+        <button onClick={onRefresh} className="saas-btn secondary" style={{ minHeight: 'auto', padding: '6px 12px' }}>
+          <RefreshCw size={14} className={isLoading ? 'spin' : ''} />
+          Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="saas-empty">
+          <Loader2 className="spin" size={24} />
+          <span>Loading complaints...</span>
+        </div>
+      ) : tasks.length === 0 ? (
+        <div className="saas-empty">
+          <span>No complaints reported yet.</span>
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Task Details</th>
+                <th>Category</th>
+                <th>AI Urgency</th>
+                <th>Status</th>
+                <th>Due Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((task) => (
+                <tr key={task._id}>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{task.title}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '4px' }}>
+                      {task.description}
+                    </div>
+                  </td>
+                  <td>
+                    <span style={{ fontSize: '0.85rem', textTransform: 'capitalize' }}>
+                      {task.category || 'General'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge priority-${task.priority}`}>
+                      {task.priority}
+                    </span>
+                  </td>
+                  <td>
+                    <TaskStatusDropdown task={task} userRole={userRole} onStatusChange={onStatusChange} />
+                  </td>
+                  <td>
+                    <span style={{ fontSize: '0.85rem' }}>
+                      {task.dueAt ? new Date(task.dueAt).toLocaleDateString() : 'No limit'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CreateTaskForm({ user, onTaskCreated }) {
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    category: 'other',
+    priority: 'normal',
+    assignedToFloors: '',
+    assignedToRooms: '',
+    dueAt: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess(false);
+
+    const payload = {
+      title: form.title,
+      description: form.description,
+      category: form.category,
+      priority: form.priority,
+      assignedToFloors: form.assignedToFloors ? form.assignedToFloors.split(',').map(f => Number(f.trim())).filter(n => !isNaN(n)) : [],
+      assignedToRooms: form.assignedToRooms ? form.assignedToRooms.split(',').map(r => r.trim()).filter(Boolean) : [],
+      dueAt: form.dueAt || undefined
+    };
+
+    try {
+      const res = await axios.post(`${API_BASE_URL}/tasks`, payload, {
+        withCredentials: true
+      });
+      if (res.data && res.data.success) {
+        setSuccess(true);
+        setForm({
+          title: '',
+          description: '',
+          category: 'other',
+          priority: 'normal',
+          assignedToFloors: '',
+          assignedToRooms: '',
+          dueAt: ''
+        });
+        if (onTaskCreated) onTaskCreated();
+      } else {
+        setError('Failed to submit task.');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to submit task.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isStudent = user?.role === 'student';
+
+  return (
+    <div className="saas-card" style={{ maxWidth: '600px', margin: '0 auto' }}>
+      <h2 className="saas-card-title">{isStudent ? 'File a New Complaint' : 'Create a New Task'}</h2>
+      <form className="saas-form" onSubmit={handleSubmit}>
+        <div className="saas-field">
+          <label>{isStudent ? 'Complaint Title' : 'Task Title'}</label>
+          <input required placeholder={isStudent ? 'e.g. Water leak in room 302' : 'e.g. Fix Wi-Fi router'} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+        </div>
+        <div className="saas-field">
+          <label>Description</label>
+          <textarea rows="4" placeholder={isStudent ? 'Provide details about the issue' : 'Task instructions and details'} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+        </div>
+
+        {!isStudent && (
+          <>
+            <div className="field-grid two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="saas-field">
+                <label>Category</label>
+                <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="education">Education</option>
+                  <option value="cleaning">Cleaning</option>
+                  <option value="mess">Mess</option>
+                  <option value="utility">Utility</option>
+                  <option value="event">Event</option>
+                  <option value="admin">Admin</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="saas-field">
+                <label>Priority</label>
+                <select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })}>
+                  <option value="low">Low</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
             </div>
 
-            {isLoadingUsers ? (
-              <div className="empty-state" style={{ minHeight: '200px' }}>
-                <Loader2 className="spin" size={30} />
-                <span>Loading directory data...</span>
+            <div className="saas-field">
+              <label>Assigned Floors (comma-separated numbers)</label>
+              <input placeholder="e.g. 1, 2, 3" value={form.assignedToFloors} onChange={e => setForm({ ...form, assignedToFloors: e.target.value })} />
+            </div>
+
+            <div className="saas-field">
+              <label>Assigned Rooms (comma-separated numbers/strings)</label>
+              <input placeholder="e.g. 101, 102, 203" value={form.assignedToRooms} onChange={e => setForm({ ...form, assignedToRooms: e.target.value })} />
+            </div>
+
+            <div className="saas-field">
+              <label>Due Date</label>
+              <input type="datetime-local" value={form.dueAt} onChange={e => setForm({ ...form, dueAt: e.target.value })} />
+            </div>
+          </>
+        )}
+
+        <button type="submit" disabled={loading} className="saas-btn primary" style={{ width: '100%' }}>
+          {loading ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+          <span>{loading ? 'Submitting...' : isStudent ? 'Submit Complaint' : 'Create Task'}</span>
+        </button>
+      </form>
+
+      {error && <div className="error-box" style={{ marginTop: '16px' }}>{error}</div>}
+      {success && (
+        <div style={{ marginTop: '16px', padding: '12px', background: '#dcfce7', border: '1px solid #bcf0da', borderRadius: '8px', color: '#15803d', fontWeight: 'bold' }}>
+          {isStudent ? 'Complaint submitted successfully!' : 'Task created successfully!'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StudentDirectory({ users, isLoading, onRefresh }) {
+  return (
+    <div className="table-card">
+      <div className="table-header">
+        <h2>Student Directory</h2>
+        <button onClick={onRefresh} className="saas-btn secondary" style={{ minHeight: 'auto', padding: '6px 12px' }}>
+          <RefreshCw size={14} className={isLoading ? 'spin' : ''} />
+          Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="saas-empty">
+          <Loader2 className="spin" size={24} />
+          <span>Loading student list...</span>
+        </div>
+      ) : users.length === 0 ? (
+        <div className="saas-empty">
+          <span>No residents found in the database.</span>
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Resident</th>
+                <th>Location</th>
+                <th>Branch & Year</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((userItem) => (
+                <tr key={userItem._id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div className="avatar-circle">
+                        {userItem.name ? userItem.name.split(' ').map(n => n[0]).slice(0, 2).join('') : 'U'}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <strong style={{ fontSize: '0.95rem' }}>{userItem.name}</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{userItem.email}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    Room {userItem.roomNumber || 'N/A'} (Floor {userItem.floor ?? 'N/A'})
+                  </td>
+                  <td>
+                    {userItem.branch || 'N/A'} - {userItem.year || 'N/A'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EducationHub() {
+  const [form, setForm] = useState({
+    userId: '',
+    branch: 'CSE',
+    year: '2nd Year',
+    floor: '',
+    roomNumber: '',
+    interests: '',
+    limit: '3'
+  });
+  const [recommendations, setRecommendations] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setRecommendations(null);
+
+    const payload = {
+      userId: form.userId || undefined,
+      profile: {
+        branch: form.branch,
+        year: form.year,
+        floor: form.floor ? Number(form.floor) : undefined,
+        roomNumber: form.roomNumber || undefined,
+        interests: form.interests.split(',').map(i => i.trim()).filter(Boolean)
+      },
+      limit: Number(form.limit)
+    };
+
+    try {
+      const res = await axios.post(`${API_BASE_URL}/ai/resources/recommend`, payload, {
+        withCredentials: true
+      });
+      if (res.data && res.data.success) {
+        setRecommendations(res.data.data);
+      } else {
+        setError('Failed to load education recommendations.');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to fetch recommendations.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="card-grid">
+      <div className="saas-card">
+        <h2 className="saas-card-title">AI Learning Recommender</h2>
+        <form className="saas-form" onSubmit={handleSubmit}>
+          <div className="saas-field">
+            <label>Student Branch</label>
+            <select value={form.branch} onChange={e => setForm({ ...form, branch: e.target.value })}>
+              <option value="CSE">Computer Science (CSE)</option>
+              <option value="ECE">Electronics (ECE)</option>
+              <option value="ME">Mechanical (ME)</option>
+              <option value="EE">Electrical (EE)</option>
+              <option value="CE">Civil (CE)</option>
+            </select>
+          </div>
+          <div className="saas-field">
+            <label>Current Year</label>
+            <select value={form.year} onChange={e => setForm({ ...form, year: e.target.value })}>
+              <option value="1st Year">1st Year</option>
+              <option value="2nd Year">2nd Year</option>
+              <option value="3rd Year">3rd Year</option>
+              <option value="4th Year">4th Year</option>
+            </select>
+          </div>
+          <div className="saas-field">
+            <label>Interests (comma-separated)</label>
+            <input
+              type="text"
+              placeholder="e.g. data structures, web, ml"
+              value={form.interests}
+              onChange={e => setForm({ ...form, interests: e.target.value })}
+            />
+          </div>
+          <button type="submit" disabled={loading} className="saas-btn primary">
+            {loading ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}
+            <span>Get Recommendations</span>
+          </button>
+        </form>
+        {error && <div className="error-box" style={{ marginTop: '16px' }}>{error}</div>}
+      </div>
+
+      <div className="saas-card">
+        <h2 className="saas-card-title">Learning Recommendations Plan</h2>
+        {!recommendations && !loading && (
+          <div className="saas-empty">
+            <GraduationCap size={32} />
+            <span>Select details and trigger recommendations to see structured Insights and Learning Plan.</span>
+          </div>
+        )}
+        {loading && (
+          <div className="saas-empty">
+            <Loader2 className="spin" size={24} />
+            <span>Generating structured learning recommendations...</span>
+          </div>
+        )}
+        {recommendations && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Insights */}
+            {recommendations.industryInsights && (
+              <div style={{ padding: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
+                <strong style={{ display: 'block', marginBottom: '8px', fontSize: '0.95rem', color: '#2563eb' }}>Industry Insights</strong>
+                <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.5', color: 'var(--text)' }}>
+                  {recommendations.industryInsights}
+                </p>
               </div>
-            ) : usersError ? (
-              <div className="error-box">{usersError}</div>
-            ) : usersList.length === 0 ? (
-              <div className="empty-state" style={{ minHeight: '200px' }}>
-                <span>No residents found in the database.</span>
+            )}
+
+            {/* Learning Plan */}
+            {recommendations.learningPlan && recommendations.learningPlan.length > 0 && (
+              <div style={{ padding: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
+                <strong style={{ display: 'block', marginBottom: '8px', fontSize: '0.95rem', color: '#2563eb' }}>3-Step Learning Plan</strong>
+                <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                  {recommendations.learningPlan.map((step, idx) => (
+                    <li key={idx} style={{ marginBottom: '8px' }}>{step}</li>
+                  ))}
+                </ol>
               </div>
-            ) : (
-              <div className="table-responsive" style={{ overflowX: 'auto' }}>
-                <table className="user-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid var(--line)' }}>
-                      <th style={{ padding: '12px 8px', fontWeight: 800 }}>Resident</th>
-                      <th style={{ padding: '12px 8px', fontWeight: 800 }}>Location</th>
-                      <th style={{ padding: '12px 8px', fontWeight: 800 }}>Branch & Year</th>
-                      <th style={{ padding: '12px 8px', fontWeight: 800 }}>Role</th>
-                      <th style={{ padding: '12px 8px', fontWeight: 800 }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {usersList.map((userItem) => (
-                      <tr key={userItem._id} style={{ borderBottom: '1px solid var(--line)', transition: 'background 0.2s' }}>
-                        <td style={{ padding: '12px 8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '0.85rem' }}>
-                              {userItem.name ? userItem.name.split(' ').map(n => n[0]).slice(0, 2).join('') : 'U'}
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <strong style={{ fontSize: '0.95rem' }}>{userItem.name}</strong>
-                              <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{userItem.email || 'No email'}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '0.9rem' }}>Room {userItem.roomNumber || 'N/A'}</span>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Floor {userItem.floor ?? 'N/A'}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '0.9rem' }}>{userItem.branch || 'N/A'}</span>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{userItem.year || 'N/A'}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>
-                          <RoleDropdownSelect userItem={userItem} onUpdateRole={onUpdateUserRole} />
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>
-                          <DeleteUserButton userId={userItem._id} onDelete={onDeleteUser} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            )}
+
+            {/* Resources */}
+            {recommendations.resources && recommendations.resources.length > 0 && (
+              <div style={{ padding: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
+                <strong style={{ display: 'block', marginBottom: '8px', fontSize: '0.95rem', color: '#2563eb' }}>Top 3 Relevant Resources</strong>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {recommendations.resources.map((resource, i) => (
+                    <div key={i} style={{ padding: '10px 0', borderBottom: i < recommendations.resources.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{resource.title}</div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: '2px' }}>{resource.description}</div>
+                      {resource.url && (
+                        <a href={resource.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', fontSize: '0.8rem', color: '#2563eb', fontWeight: 'bold', marginTop: '6px', textDecoration: 'none' }}>
+                          View Link &rarr;
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Search Suggestions */}
+            {recommendations.searchSuggestions && recommendations.searchSuggestions.length > 0 && (
+              <div style={{ padding: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
+                <strong style={{ display: 'block', marginBottom: '8px', fontSize: '0.95rem', color: '#2563eb' }}>Suggested Search Topics</strong>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {recommendations.searchSuggestions.map((tag, idx) => (
+                    <span key={idx} style={{ fontSize: '0.8rem', background: 'var(--surface)', border: '1px solid var(--line)', padding: '4px 10px', borderRadius: '16px', color: 'var(--muted)' }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
         )}
-      </section>
+      </div>
+    </div>
+  );
+}
 
-      {!isUserDirectory && (
-        <section className="result-panel">
-          <div className="panel-header compact">
-            <div>
-              <p>Request payload</p>
-              <h2>Preview</h2>
-            </div>
-            <Tags size={22} aria-hidden="true" />
-          </div>
-          <JsonBlock value={payload} />
+function ImportExcel() {
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
 
-          <div className="panel-header compact response-title">
-            <div>
-              <p>API response</p>
-              <h2>Result</h2>
-            </div>
-            <Bot size={22} aria-hidden="true" />
-          </div>
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    setResult(null);
 
-          {error && <div className="error-box">{error}</div>}
-          {result ? (
-            <JsonBlock value={result} />
-          ) : (
-            <div className="empty-state">
-              <Brain size={30} aria-hidden="true" />
-              <span>No response yet</span>
-            </div>
-          )}
-        </section>
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await axios.post(`${API_BASE_URL}/users/import`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        withCredentials: true
+      });
+      if (res.data && res.data.success) {
+        setResult(res.data);
+        setFile(null);
+      } else {
+        setError('Failed to import user spreadsheet.');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="saas-card" style={{ maxWidth: '600px', margin: '0 auto' }}>
+      <h2 className="saas-card-title">Bulk Resident Import</h2>
+      <p style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '24px' }}>
+        Select or drag a Microsoft Excel (.xlsx, .xls) or CSV (.csv) file containing resident details to automatically import them.
+      </p>
+
+      <form onSubmit={handleUpload} className="saas-form">
+        <div className="excel-upload-container">
+          <FileSpreadsheet size={40} className="excel-upload-icon" />
+          <p style={{ fontWeight: 600, margin: 0 }}>
+            {file ? file.name : 'Choose file or drag here'}
+          </p>
+          <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+            {file ? `Size: ${(file.size / 1024).toFixed(1)} KB` : 'Supports xls, xlsx, csv'}
+          </span>
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={e => setFile(e.target.files?.[0] || null)}
+          />
+        </div>
+
+        <button type="submit" disabled={!file || uploading} className="saas-btn primary" style={{ width: '100%' }}>
+          {uploading ? <Loader2 className="spin" size={16} /> : <FileSpreadsheet size={16} />}
+          <span>{uploading ? 'Importing Residents...' : 'Upload & Import'}</span>
+        </button>
+      </form>
+
+      {error && <div className="error-box" style={{ marginTop: '20px' }}>{error}</div>}
+      {result && (
+        <div style={{ marginTop: '20px', padding: '16px', background: '#dcfce7', border: '1px solid #bcf0da', borderRadius: '8px', color: '#15803d', fontSize: '0.9rem' }}>
+          <strong>Success!</strong> Resident spreadsheet imported.
+          <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>
+            <li>Total Records Read: {result.recordsRead || 0}</li>
+            <li>Successful Imports: {result.successCount || 0}</li>
+            <li>Errors/Duplicates Skipped: {result.errorCount || 0}</li>
+          </ul>
+        </div>
       )}
-    </section>
+    </div>
+  );
+}
+
+function ManageRoles({ users, isLoading, onRefresh, onUpdateRole, onDeleteUser }) {
+  return (
+    <div className="table-card">
+      <div className="table-header">
+        <h2>Resident Access Control (RBAC)</h2>
+        <button onClick={onRefresh} className="saas-btn secondary" style={{ minHeight: 'auto', padding: '6px 12px' }}>
+          <RefreshCw size={14} className={isLoading ? 'spin' : ''} />
+          Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="saas-empty">
+          <Loader2 className="spin" size={24} />
+          <span>Loading accounts...</span>
+        </div>
+      ) : users.length === 0 ? (
+        <div className="saas-empty">
+          <span>No accounts found.</span>
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Resident</th>
+                <th>Location</th>
+                <th>Branch & Year</th>
+                <th>Role</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((userItem) => (
+                <tr key={userItem._id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div className="avatar-circle">
+                        {userItem.name ? userItem.name.split(' ').map(n => n[0]).slice(0, 2).join('') : 'U'}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <strong style={{ fontSize: '0.95rem' }}>{userItem.name}</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{userItem.email}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    Room {userItem.roomNumber || 'N/A'} (Floor {userItem.floor ?? 'N/A'})
+                  </td>
+                  <td>
+                    {userItem.branch || 'N/A'} - {userItem.year || 'N/A'}
+                  </td>
+                  <td>
+                    <RoleDropdownSelect userItem={userItem} onUpdateRole={onUpdateRole} />
+                  </td>
+                  <td>
+                    <DeleteUserButton userId={userItem._id} onDelete={onDeleteUser} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function Console() {
   const { user, logout } = useAuth();
-  const [view, setView] = useState('home');
-  const [activeTool, setActiveTool] = useState('task');
-  const [forms, setForms] = useState(initialForms);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [apiStatus, setApiStatus] = useState('checking');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [theme, setTheme] = useState(() => localStorage.getItem('hostelly-theme') || 'light');
 
   const [usersList, setUsersList] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [usersError, setUsersError] = useState('');
+
+  const [tasksList, setTasksList] = useState([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const [tasksError, setTasksError] = useState('');
 
   const fetchUsers = useCallback(async () => {
     setIsLoadingUsers(true);
@@ -859,6 +881,25 @@ export default function Console() {
       setUsersError(err.response?.data?.message || err.message || 'Failed to load users list');
     } finally {
       setIsLoadingUsers(false);
+    }
+  }, []);
+
+  const fetchTasks = useCallback(async () => {
+    setIsLoadingTasks(true);
+    setTasksError('');
+    try {
+      const response = await axios.get(`${API_BASE_URL}/tasks`, {
+        withCredentials: true
+      });
+      if (response.data && response.data.success) {
+        setTasksList(response.data.data);
+      } else {
+        setTasksError('Failed to load tasks');
+      }
+    } catch (err) {
+      setTasksError(err.response?.data?.message || err.message || 'Failed to load tasks');
+    } finally {
+      setIsLoadingTasks(false);
     }
   }, []);
 
@@ -898,173 +939,205 @@ export default function Console() {
     }
   };
 
-  useEffect(() => {
-    if (activeTool === 'user_directory') {
-      fetchUsers();
-    }
-  }, [activeTool, fetchUsers]);
-
-  const allowedTools = useMemo(() => tools.filter((tool) => tool.roles.includes(user?.role || 'student')), [user]);
-
-  // Ensure active tool is allowed for the user's role
-  useEffect(() => {
-    if (user && allowedTools.length > 0) {
-      const isAllowed = allowedTools.some((tool) => tool.id === activeTool);
-      if (!isAllowed) {
-        setActiveTool(allowedTools[0].id);
+  const handleUpdateTaskStatus = async (taskId, newStatus) => {
+    try {
+      const response = await axios.patch(
+        `${API_BASE_URL}/tasks/${taskId}/status`,
+        { status: newStatus },
+        { withCredentials: true }
+      );
+      if (response.data && response.data.success) {
+        setTasksList((currentList) =>
+          currentList.map((t) => (t._id === taskId ? { ...t, status: newStatus } : t))
+        );
+        return { success: true };
       }
+      return { success: false, error: 'Failed to update task status' };
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Failed to update status';
+      return { success: false, error: msg };
     }
-  }, [user, allowedTools, activeTool]);
+  };
 
-  const selectedTool = useMemo(() => tools.find((tool) => tool.id === activeTool) || allowedTools[0] || tools[0], [activeTool, allowedTools]);
-  const payload = useMemo(() => buildPayload(activeTool, forms[activeTool]), [activeTool, forms]);
+  useEffect(() => {
+    fetchUsers();
+    fetchTasks();
+  }, [fetchUsers, fetchTasks]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('hostelly-theme', theme);
   }, [theme]);
 
-  useEffect(() => {
-    let ignored = false;
-
-    async function checkHealth() {
-      setApiStatus('checking');
-
-      try {
-        await axios.get(`${API_BASE_URL}/health`, { timeout: 4000 });
-        if (!ignored) setApiStatus('online');
-      } catch {
-        if (!ignored) setApiStatus('offline');
-      }
-    }
-
-    checkHealth();
-
-    return () => {
-      ignored = true;
-    };
-  }, []);
-
-  function openTool(toolId) {
-    if (!allowedTools.some(t => t.id === toolId)) return;
-    setActiveTool(toolId);
-    setView('console');
-    setResult(null);
-    setError('');
-  }
-
-  function updateForm(key, value) {
-    setForms((current) => ({
-      ...current,
-      [activeTool]: {
-        ...current[activeTool],
-        [key]: value
-      }
-    }));
-  }
-
-  function changeTool(toolId) {
-    setActiveTool(toolId);
-    setResult(null);
-    setError('');
-  }
-
-  async function submitActiveTool(event) {
-    event.preventDefault();
-    setError('');
-    setResult(null);
-    setIsSubmitting(true);
-
-    try {
-      let response;
-      if (activeTool === 'excel_upload') {
-        const formData = new FormData();
-        if (!forms.excel_upload.file) {
-          throw new Error('Please select an Excel or CSV file to upload.');
-        }
-        formData.append('file', forms.excel_upload.file);
-        
-        response = await axios.post(`${API_BASE_URL}${endpointPath(activeTool)}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          withCredentials: true
-        });
-      } else {
-        response = await axios.post(`${API_BASE_URL}${endpointPath(activeTool)}`, payload, {
-          withCredentials: true
-        });
-      }
-      setResult(response.data);
-    } catch (requestError) {
-      const message =
-        requestError.response?.data?.message ||
-        requestError.message ||
-        'Request failed. Check the API server and environment variables.';
-      setError(message);
-      setResult(requestError.response?.data || null);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  const activeTabLabel = useMemo(() => {
+    return {
+      dashboard: 'Dashboard Overview',
+      complaints: 'Public Complaints',
+      create_task: user?.role === 'student' ? 'File Complaint' : 'Create Task',
+      directory: 'Student Directory',
+      education_hub: 'Education Hub',
+      import_excel: 'Import Excel',
+      manage_roles: 'Manage Roles'
+    }[activeTab] || 'Dashboard';
+  }, [activeTab, user]);
 
   return (
-    <main className="app-shell">
-      <header className="site-header">
-        <button className="brand-mark" type="button" onClick={() => setView('home')} aria-label="Go home">
-          <span><Building2 size={20} /></span>
-          Hostelly
-        </button>
+    <div className="dashboard-layout">
+      {/* Sidebar */}
+      <aside className="sidebar-fixed">
+        <a href="#logo" className="sidebar-logo">
+          <span><Building2 size={18} /></span>
+          HostelOS
+        </a>
 
-        <nav className="site-nav" aria-label="Main navigation">
-          <button className={view === 'home' ? 'active' : ''} type="button" onClick={() => setView('home')}>
-            <Home size={16} />
-            Home
-          </button>
-          <a href="#features">Features</a>
-          <a href="#workflow">Workflow</a>
-          <button className={view === 'console' ? 'active' : ''} type="button" onClick={() => setView('console')}>
-            <Network size={16} />
-            Endpoints
-          </button>
-        </nav>
-
-        <div className="header-actions">
-          <StatusBadge status={apiStatus} />
+        <div className="sidebar-menu">
           <button
-            className="icon-button"
-            type="button"
-            title={theme === 'dark' ? 'Use light mode' : 'Use dark mode'}
-            aria-label={theme === 'dark' ? 'Use light mode' : 'Use dark mode'}
-            onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+            onClick={() => setActiveTab('dashboard')}
+            className={`sidebar-link ${activeTab === 'dashboard' ? 'active' : ''}`}
           >
-            {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
+            <Home size={18} />
+            <span>Dashboard</span>
           </button>
-          <AuthBox user={user} onLogout={logout} />
-        </div>
-      </header>
+          <button
+            onClick={() => setActiveTab('complaints')}
+            className={`sidebar-link ${activeTab === 'complaints' ? 'active' : ''}`}
+          >
+            <AlertTriangle size={18} />
+            <span>Public Complaints</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('create_task')}
+            className={`sidebar-link ${activeTab === 'create_task' ? 'active' : ''}`}
+          >
+            <Plus size={18} />
+            <span>{user?.role === 'student' ? 'File Complaint' : 'Create Task'}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('directory')}
+            className={`sidebar-link ${activeTab === 'directory' ? 'active' : ''}`}
+          >
+            <UsersRound size={18} />
+            <span>Student Directory</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('education_hub')}
+            className={`sidebar-link ${activeTab === 'education_hub' ? 'active' : ''}`}
+          >
+            <GraduationCap size={18} />
+            <span>Education Hub</span>
+          </button>
 
-      {view === 'home' ? (
-        <LandingPage openTool={openTool} />
-      ) : (
-        <ConsoleView
-          activeTool={activeTool}
-          setActiveTool={changeTool}
-          forms={forms}
-          updateForm={updateForm}
-          payload={payload}
-          selectedTool={selectedTool}
-          submitActiveTool={submitActiveTool}
-          isSubmitting={isSubmitting}
-          result={result}
-          error={error}
-          allowedTools={allowedTools}
-          usersList={usersList}
-          isLoadingUsers={isLoadingUsers}
-          usersError={usersError}
-          onUpdateUserRole={handleUpdateUserRole}
-          onDeleteUser={handleDeleteUser}
-          onRefreshUsers={fetchUsers}
-        />
-      )}
-    </main>
+          {user?.role === 'admin' && (
+            <>
+              <div className="sidebar-section-title">Admin Operations</div>
+              <button
+                onClick={() => setActiveTab('import_excel')}
+                className={`sidebar-link ${activeTab === 'import_excel' ? 'active' : ''}`}
+              >
+                <FileSpreadsheet size={18} />
+                <span>Import Excel</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('manage_roles')}
+                className={`sidebar-link ${activeTab === 'manage_roles' ? 'active' : ''}`}
+              >
+                <ShieldCheck size={18} />
+                <span>Manage Roles</span>
+              </button>
+            </>
+          )}
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="main-content-scroll">
+        {/* Header */}
+        <header className="top-header-bar">
+          <div className="header-welcome">
+            <h1>{activeTabLabel}</h1>
+            <p>Welcome back, {user?.name || 'User'} ({user?.role || 'Resident'})</p>
+          </div>
+
+          <div className="header-actions">
+            <button
+              className="logout-btn"
+              type="button"
+              title={theme === 'dark' ? 'Use light mode' : 'Use dark mode'}
+              onClick={() => setTheme(curr => curr === 'dark' ? 'light' : 'dark')}
+              style={{ marginRight: '8px' }}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <div className="user-badge">
+              <div className="avatar-circle">
+                {user?.name ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('') : 'U'}
+              </div>
+              <span className="badge-text">{user?.name || 'Resident'}</span>
+            </div>
+            <button className="logout-btn" onClick={logout}>
+              <LogOut size={15} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+              Logout
+            </button>
+          </div>
+        </header>
+
+        {/* Content Body */}
+        <main className="page-container">
+          {activeTab === 'dashboard' && (
+            <DashboardOverview
+              tasks={tasksList}
+              users={usersList}
+              userRole={user?.role}
+              isLoading={isLoadingTasks}
+              onRefresh={fetchTasks}
+              onStatusChange={handleUpdateTaskStatus}
+            />
+          )}
+
+          {activeTab === 'complaints' && (
+            <ComplaintsBoard
+              tasks={tasksList}
+              userRole={user?.role}
+              isLoading={isLoadingTasks}
+              onRefresh={fetchTasks}
+              onStatusChange={handleUpdateTaskStatus}
+            />
+          )}
+
+          {activeTab === 'create_task' && (
+            <CreateTaskForm
+              user={user}
+              onTaskCreated={fetchTasks}
+            />
+          )}
+
+          {activeTab === 'directory' && (
+            <StudentDirectory
+              users={usersList}
+              isLoading={isLoadingUsers}
+              onRefresh={fetchUsers}
+            />
+          )}
+
+          {activeTab === 'education_hub' && (
+            <EducationHub />
+          )}
+
+          {activeTab === 'import_excel' && user?.role === 'admin' && (
+            <ImportExcel />
+          )}
+
+          {activeTab === 'manage_roles' && user?.role === 'admin' && (
+            <ManageRoles
+              users={usersList}
+              isLoading={isLoadingUsers}
+              onRefresh={fetchUsers}
+              onUpdateRole={handleUpdateUserRole}
+              onDeleteUser={handleDeleteUser}
+            />
+          )}
+        </main>
+      </div>
+    </div>
   );
 }

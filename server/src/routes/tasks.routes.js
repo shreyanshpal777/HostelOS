@@ -25,10 +25,10 @@ const createTaskSchema = z.object({
 // Require authentication for all task routes
 tasksRouter.use(requireAuth);
 
-// Create task: restricted to admin, leader, co_leader
+// Create task: allowed for admin, leader, co_leader, and students
 tasksRouter.post(
   '/',
-  requireRole(['admin', 'leader', 'co_leader']),
+  requireRole(['admin', 'leader', 'co_leader', 'student']),
   asyncHandler(async (req, res) => {
     const input = createTaskSchema.parse(req.body);
     const task = new Task({
@@ -70,5 +70,23 @@ tasksRouter.get(
       .lean();
 
     res.json({ success: true, data: tasks });
+  })
+);
+
+// Update task status: restricted to admin, leader, co_leader
+tasksRouter.patch(
+  '/:id/status',
+  requireRole(['admin', 'leader', 'co_leader']),
+  asyncHandler(async (req, res) => {
+    const { status } = z.object({
+      status: z.enum(['draft', 'assigned', 'in_progress', 'pending', 'submitted', 'verified', 'completed', 'resolved', 'overdue', 'cancelled'])
+    }).parse(req.body);
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+    task.status = status;
+    await task.save();
+    res.json({ success: true, data: task });
   })
 );
