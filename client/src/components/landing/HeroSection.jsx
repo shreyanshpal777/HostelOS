@@ -38,7 +38,7 @@ export default function HeroSection({ heroImage }) {
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold leading-tight mb-6 text-gray-900 dark:text-white">
               The Modern{" "}
               <span className="gradient-text">Operating System</span>{" "}
-              for Student Housing.
+              for Student hostel management.
             </h1>
 
             <p className="text-lg sm:text-xl text-gray-500 dark:text-gray-400 leading-relaxed mb-8 max-w-xl">

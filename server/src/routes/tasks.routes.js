@@ -48,20 +48,7 @@ tasksRouter.get(
     const { role, userId } = req.auth;
     let query = {};
 
-    // If the user is a normal student, they should only see tasks assigned to them, their room, or their floor.
-    if (role === 'student') {
-      const User = mongoose.model('User');
-      const student = await User.findById(userId).lean();
-      if (student) {
-        query.$or = [
-          { assignedToUsers: userId },
-          { assignedToFloors: student.floor },
-          { assignedToRooms: student.roomNumber }
-        ];
-      } else {
-        query.assignedToUsers = userId;
-      }
-    }
+    // Students and leadership roles can view all tasks and complaints.
 
     const tasks = await Task.find(query)
       .populate('createdBy', 'name email avatarUrl')

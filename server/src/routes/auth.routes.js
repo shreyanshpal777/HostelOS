@@ -61,6 +61,7 @@ async function findOrCreateOAuthUser({ provider, providerId, email, name, avatar
   user.providerIds = { ...(user.providerIds?.toObject?.() || user.providerIds || {}), [provider]: providerId };
   user.authProviders = [...new Set([...(user.authProviders || []), provider])];
   if (!user.avatarUrl && avatarUrl) user.avatarUrl = avatarUrl;
+  user.isActivated = true; // OAuth is auto-activated
   user.lastLoginAt = new Date();
   await user.save();
   return user;
@@ -90,7 +91,7 @@ export function requireAuth(req, res, next) {
 authRouter.post('/register', asyncHandler(async (req, res) => {
   const input = registerSchema.parse(req.body);
   if (await User.exists({ email: input.email })) throw Object.assign(new Error('An account with this email already exists'), { statusCode: 409 });
-  const user = new User({ name: input.name, email: input.email, authProviders: ['local'] });
+  const user = new User({ name: input.name, email: input.email, authProviders: ['local'], isActivated: true });
   await user.setPassword(input.password);
   await user.save();
   setSession(res, user);
@@ -99,7 +100,9 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
 authRouter.post('/login', asyncHandler(async (req, res) => {
   const input = loginSchema.parse(req.body);
   const user = await User.findOne({ email: input.email }).select('+passwordHash');
-  if (!user || !(await user.comparePassword(input.password))) throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
+  if (!user) throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
+  if (!user.isActivated) throw Object.assign(new Error('Account not activated. Please use first-time resident setup.'), { statusCode: 403 });
+  if (!(await user.comparePassword(input.password))) throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
   if (!user.isActive) throw Object.assign(new Error('This account is inactive'), { statusCode: 403 });
   user.lastLoginAt = new Date();
   if (!user.authProviders.includes('local')) user.authProviders.push('local');
@@ -165,3 +168,77 @@ authRouter.get('/github/callback', async (req, res) => {
     callbackSuccess(res, await findOrCreateOAuthUser({ provider: 'github', providerId: String(profile.id), email: email?.toLowerCase(), name: profile.name || profile.login, avatarUrl: profile.avatar_url }));
   } catch (error) { callbackFailure(res, error); }
 });
+
+authRouter.post('/activate/request-otp', asyncHandler(async (req, res) => {
+  const { email } = z.object({ email: emailSchema }).parse(req.body);
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw Object.assign(new Error('No pre-loaded account found with this email. Please contact the Admin.'), { statusCode: 404 });
+  }
+  if (user.isActivated) {
+    return res.status(400).json({ success: false, message: 'Account is already activated. Please log in directly.' });
+  }
+
+  // Generate 6-digit random code
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  user.activationOtp = otpCode;
+  user.activationOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+  await user.save();
+
+  console.log(`[Activation OTP for ${email}]: ${otpCode}`);
+
+  res.json({
+    success: true,
+    message: 'OTP flashed to your device successfully (for testing).',
+    otp: otpCode // Flashed/returned directly to device as requested
+  });
+}));
+
+authRouter.post('/activate/verify-otp', asyncHandler(async (req, res) => {
+  const { email, otp } = z.object({ email: emailSchema, otp: z.string().length(6) }).parse(req.body);
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw Object.assign(new Error('No pre-loaded account found with this email.'), { statusCode: 404 });
+  }
+  
+  if (user.activationOtp !== otp || !user.activationOtpExpiresAt || user.activationOtpExpiresAt < new Date()) {
+    throw Object.assign(new Error('Invalid or expired OTP. Please request a new code.'), { statusCode: 400 });
+  }
+
+  res.json({
+    success: true,
+    message: 'OTP verified successfully. Please set your password now.'
+  });
+}));
+
+authRouter.post('/activate/set-password', asyncHandler(async (req, res) => {
+  const { email, otp, password } = z.object({
+    email: emailSchema,
+    otp: z.string().length(6),
+    password: z.string().min(8)
+  }).parse(req.body);
+  
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw Object.assign(new Error('No pre-loaded account found with this email.'), { statusCode: 404 });
+  }
+
+  if (user.activationOtp !== otp || !user.activationOtpExpiresAt || user.activationOtpExpiresAt < new Date()) {
+    throw Object.assign(new Error('Invalid or expired OTP. Verification failed.'), { statusCode: 400 });
+  }
+
+  await user.setPassword(password);
+  user.isActivated = true;
+  user.activationOtp = undefined;
+  user.activationOtpExpiresAt = undefined;
+  user.lastLoginAt = new Date();
+  if (!user.authProviders.includes('local')) user.authProviders.push('local');
+  await user.save();
+
+  setSession(res, user);
+  res.json({
+    success: true,
+    message: 'Account activated successfully. Logged in.',
+    data: publicUser(user)
+  });
+}));

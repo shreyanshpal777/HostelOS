@@ -54,6 +54,9 @@ const userSchema = new mongoose.Schema(
       rooms: [{ type: String, trim: true }]
     },
     isActive: { type: Boolean, default: true, index: true },
+    isActivated: { type: Boolean, default: false, index: true },
+    activationOtp: { type: String },
+    activationOtpExpiresAt: { type: Date },
     whatsappOptIn: { type: Boolean, default: true },
     importedBatchId: { type: mongoose.Schema.Types.ObjectId, ref: 'ImportBatch' },
     lastLoginAt: Date

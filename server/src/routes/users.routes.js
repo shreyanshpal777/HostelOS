@@ -12,7 +12,6 @@ import { requireRole } from '../middleware/role.js';
 export const usersRouter = Router();
 
 usersRouter.use(requireAuth);
-usersRouter.use(requireRole(['admin', 'leader', 'co_leader']));
 const roles = ['student', 'co_leader', 'leader', 'admin'];
 const text = z.preprocess((v) => (v === '' || v == null ? undefined : String(v).trim()), z.string().optional());
 const objectId = z.string().refine(mongoose.Types.ObjectId.isValid, 'Invalid MongoDB ObjectId');
@@ -69,15 +68,20 @@ function rowData(row) {
 async function saveUser(input, importedBatchId) {
   const { password, ...data } = input;
   const user = new User({ ...data, importedBatchId });
-  if (password) await user.setPassword(password);
+  if (password) {
+    await user.setPassword(password);
+    user.isActivated = true;
+  } else {
+    user.isActivated = false;
+  }
   return user.save();
 }
 function notFound() { return Object.assign(new Error('User not found'), { statusCode: 404 }); }
 
-usersRouter.get('/imports', asyncHandler(async (req, res) => {
+usersRouter.get('/imports', requireRole(['admin', 'leader', 'co_leader']), asyncHandler(async (req, res) => {
   res.json({ success: true, data: await ImportBatch.find().sort({ createdAt: -1 }).limit(50).lean() });
 }));
-usersRouter.post('/import', upload.single('file'), asyncHandler(async (req, res) => {
+usersRouter.post('/import', requireRole(['admin', 'leader', 'co_leader']), upload.single('file'), asyncHandler(async (req, res) => {
   if (!req.file) throw Object.assign(new Error('Excel or CSV file is required in the file field'), { statusCode: 400 });
   const uploadedBy = req.body.uploadedBy ? objectId.parse(req.body.uploadedBy) : req.auth.userId;
   const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
@@ -99,7 +103,7 @@ usersRouter.post('/import', upload.single('file'), asyncHandler(async (req, res)
   await batch.save();
   res.status(201).json({ success: true, data: batch });
 }));
-usersRouter.post('/', asyncHandler(async (req, res) => {
+usersRouter.post('/', requireRole(['admin', 'leader', 'co_leader']), asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: await saveUser(createSchema.parse(req.body)) });
 }));
 usersRouter.get('/', asyncHandler(async (req, res) => {
@@ -119,6 +123,9 @@ usersRouter.get('/:id', asyncHandler(async (req, res) => {
   res.json({ success: true, data: user });
 }));
 usersRouter.patch('/:id', asyncHandler(async (req, res) => {
+  if (req.auth.role !== 'admin' && req.auth.userId !== req.params.id) {
+    return res.status(403).json({ success: false, message: 'You can only update your own profile' });
+  }
   const { password, ...updates } = updateSchema.parse(req.body);
   if (updates.role && req.auth.role !== 'admin') {
     return res.status(403).json({ success: false, message: 'Only admins can modify user roles' });
