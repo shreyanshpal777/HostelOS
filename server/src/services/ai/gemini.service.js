@@ -177,3 +177,31 @@ export async function createGeminiEmbedding(text) {
 
   return result.embedding.values;
 }
+
+export async function answerChatQuestion(question, contextChunks) {
+  const hasContext = contextChunks && contextChunks.length > 0;
+  
+  const systemPrompt = `You are the HostelOS Assistant, a helpful AI chatbot for student support at the hostel.
+  
+  ${hasContext ? `
+  Official Hostel Rulebook context paragraphs:
+  ${contextChunks.map((c, i) => `[Context ${i + 1}]: ${c.text}`).join('\n\n')}
+  
+  Instructions:
+  1. A student has asked a question: "${question}"
+  2. Answer the question using ONLY the provided Hostel Rulebook context. Do not use outside knowledge.
+  3. If the context does not contain the answer, or if the information is not released, you MUST respond EXACTLY with: "No such information released, please be patient and wait for the notice" and nothing else.
+  ` : `
+  Instructions:
+  1. A student has asked a question: "${question}"
+  2. Evaluate if this is a general query (like a greeting "hello", "hi", small talk "how are you?", or general conversation).
+     - If it is a general query, respond to it naturally as a friendly chatbot.
+     - If it is a specific query about hostel rules, timings, regulations, facilities, or policies, but no context was provided, you MUST respond EXACTLY with: "No such information released, please be patient and wait for the notice" and nothing else.
+  `}
+  
+  Return your response as plain text. Do not output JSON.`;
+
+  const modelInstance = genAI.getGenerativeModel({ model: env.GEMINI_MODEL });
+  const result = await modelInstance.generateContent(systemPrompt);
+  return result.response.text().trim();
+}

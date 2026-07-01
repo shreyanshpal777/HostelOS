@@ -16,7 +16,9 @@ import {
   Sparkles,
   CheckCircle2,
   RefreshCw,
-  Plus
+  Plus,
+  MessageSquare,
+  X
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import './console.css';
@@ -852,6 +854,100 @@ function ManageRoles({ users, isLoading, onRefresh, onUpdateRole, onDeleteUser }
   );
 }
 
+function HostelOSChatbot() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    { sender: 'bot', text: 'Hi! I am the HostelOS rulebook assistant. How can I help you today?' }
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!input.trim() || loading) return;
+
+    const userMessage = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
+    setLoading(true);
+
+    try {
+      const res = await axios.post(`${API_BASE_URL}/ai/chat`, { question: userMessage }, {
+        withCredentials: true
+      });
+      if (res.data && res.data.success) {
+        setMessages(prev => [...prev, { sender: 'bot', text: res.data.data.answer }]);
+      } else {
+        setMessages(prev => [...prev, { sender: 'bot', text: 'Sorry, I encountered an error processing your query.' }]);
+      }
+    } catch (err) {
+      setMessages(prev => [...prev, { sender: 'bot', text: 'Sorry, I am unable to connect to the server right now.' }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="floating-chatbot-container">
+      {isOpen && (
+        <div className="chat-panel">
+          <div className="chat-header">
+            <div className="chat-header-info">
+              <span className="chat-header-dot"></span>
+              <strong>HostelOS Assistant</strong>
+            </div>
+            <button onClick={() => setIsOpen(false)} className="chat-close-btn">
+              <X size={16} />
+            </button>
+          </div>
+          
+          <div className="chat-body">
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`chat-message ${msg.sender}`}>
+                <div className="chat-bubble">
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="chat-message bot">
+                <div className="chat-bubble loading">
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <form onSubmit={handleSend} className="chat-footer">
+            <input
+              type="text"
+              placeholder="Ask about hostel rules..."
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              disabled={loading}
+              required
+            />
+            <button type="submit" disabled={loading || !input.trim()}>
+              Send
+            </button>
+          </form>
+        </div>
+      )}
+
+      {!isOpen && (
+        <div className="chat-badge-wrapper">
+          <div className="chat-popover-hint">Need help? Ask rules!</div>
+          <button className="chat-badge-btn" onClick={() => setIsOpen(true)}>
+            <MessageSquare size={22} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Console() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1138,6 +1234,7 @@ export default function Console() {
           )}
         </main>
       </div>
+      <HostelOSChatbot />
     </div>
   );
 }

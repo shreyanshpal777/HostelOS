@@ -628,3 +628,221 @@ body {
     padding: 16px;
   }
 }
+
+/* Floating Chatbot Widget Styling */
+.floating-chatbot-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+}
+
+.chat-badge-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-popover-hint {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 8px 14px;
+  border-radius: 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: fadeInOut 4s ease-in-out infinite alternate;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0.8; transform: translateY(0); }
+  100% { opacity: 1; transform: translateY(-3px); }
+}
+
+.chat-badge-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  transition: all 0.2s ease;
+}
+
+.chat-badge-btn:hover {
+  background: var(--brand-primary-strong);
+  transform: scale(1.05);
+}
+
+.chat-panel {
+  width: 360px;
+  height: 480px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.chat-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chat-header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-header-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.chat-header-info strong {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.chat-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+}
+
+.chat-close-btn:hover {
+  background: var(--line);
+  color: var(--text);
+}
+
+.chat-body {
+  flex-grow: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg);
+}
+
+.chat-message {
+  display: flex;
+  width: 100%;
+}
+
+.chat-message.user {
+  justify-content: flex-end;
+}
+
+.chat-message.bot {
+  justify-content: flex-start;
+}
+
+.chat-bubble {
+  max-width: 80%;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  border-radius: 12px;
+}
+
+.chat-message.user .chat-bubble {
+  background: var(--brand-primary);
+  color: #ffffff;
+  border-bottom-right-radius: 2px;
+}
+
+.chat-message.bot .chat-bubble {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 2px;
+}
+
+.chat-bubble.loading {
+  display: flex;
+  gap: 4px;
+  padding: 12px;
+}
+
+.chat-bubble.loading .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--muted);
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.chat-bubble.loading .dot:nth-child(1) { animation-delay: -0.32s; }
+.chat-bubble.loading .dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1.0); }
+}
+
+.chat-footer {
+  border-top: 1px solid var(--line);
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+  background: var(--surface);
+}
+
+.chat-footer input {
+  flex-grow: 1;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 0.88rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.chat-footer input:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+}
+
+.chat-footer button {
+  background: var(--brand-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chat-footer button:hover:not(:disabled) {
+  background: var(--brand-primary-strong);
+}
+
+.chat-footer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

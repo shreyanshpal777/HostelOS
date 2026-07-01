@@ -6,13 +6,15 @@ import { EducationResource } from '../models/EducationResource.js';
 import { KnowledgeDocument } from '../models/KnowledgeDocument.js';
 import { Task } from '../models/Task.js';
 import { User } from '../models/User.js';
+import { RulebookChunk } from '../models/RulebookChunk.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import {
   analyzeComplaintWithGemini,
   answerHostelQuestionWithGemini,
   categorizeTaskWithGemini,
   createGeminiEmbedding,
-  recommendResourcesWithGemini
+  recommendResourcesWithGemini,
+  answerChatQuestion
 } from '../services/ai/gemini.service.js';
 
 export const aiRouter = Router();
@@ -407,6 +409,87 @@ aiRouter.post(
       data: {
         dimensions: embedding.length,
         embedding
+      }
+    });
+  })
+);
+
+const chatSchema = z.object({
+  question: z.string().min(1)
+});
+
+function cosineSimilarity(vecA, vecB) {
+  let dotProduct = 0.0;
+  let normA = 0.0;
+  let normB = 0.0;
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+aiRouter.post(
+  '/chat',
+  asyncHandler(async (req, res) => {
+    const input = chatSchema.parse(req.body);
+    const queryEmbedding = await createGeminiEmbedding(input.question);
+    
+    let relevantChunks = [];
+    let maxSimilarity = 0;
+
+    // 1. Try Atlas Vector Search
+    try {
+      const results = await RulebookChunk.aggregate([
+        {
+          $vectorSearch: {
+            index: "vector_index",
+            path: "embedding",
+            queryVector: queryEmbedding,
+            numCandidates: 10,
+            limit: 3
+          }
+        }
+      ]);
+      if (results && results.length > 0) {
+        relevantChunks = results.map(r => ({ text: r.text, pageNumber: r.pageNumber }));
+        maxSimilarity = 1.0;
+      }
+    } catch (err) {
+      console.log("Atlas Vector Search index failed or is unconfigured, using in-memory cosine similarity:", err.message);
+    }
+
+    // 2. Fallback to in-memory cosine similarity
+    if (relevantChunks.length === 0) {
+      const allChunks = await RulebookChunk.find().lean();
+      if (allChunks.length > 0) {
+        const scored = allChunks.map(chunk => ({
+          ...chunk,
+          score: cosineSimilarity(queryEmbedding, chunk.embedding)
+        }));
+        scored.sort((a, b) => b.score - a.score);
+        
+        const top3 = scored.slice(0, 3);
+        maxSimilarity = top3.length > 0 ? top3[0].score : 0;
+        
+        // Accept matches above threshold
+        if (maxSimilarity >= 0.65) {
+          relevantChunks = top3.map(c => ({ text: c.text, pageNumber: c.pageNumber }));
+        }
+      }
+    }
+
+    // 3. Generate Answer
+    const answer = await answerChatQuestion(input.question, relevantChunks);
+
+    res.json({
+      success: true,
+      data: {
+        answer,
+        chunksFound: relevantChunks.length,
+        maxSimilarityScore: maxSimilarity
       }
     });
   })
