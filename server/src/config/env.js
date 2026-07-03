@@ -35,6 +35,8 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional().default(''),
   CLOUDINARY_API_KEY: z.string().optional().default(''),
   CLOUDINARY_API_SECRET: z.string().optional().default(''),
+  EMAIL_USER: z.string().optional().default(''),
+  EMAIL_PASS: z.string().optional().default(''),
   UPLOAD_DIR: z.string().default('uploads'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(200)

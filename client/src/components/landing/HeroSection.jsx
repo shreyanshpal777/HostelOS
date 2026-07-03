@@ -102,7 +102,7 @@ export default function HeroSection({ heroImage }) {
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-gray-900">AI Conflict Detection</div>
+                  <div className="text-sm font-semibold text-white-900">AI Conflict Detection</div>
                   <div className="text-xs text-gray-500">3 issues resolved today</div>
                 </div>
               </div>
@@ -119,7 +119,7 @@ export default function HeroSection({ heroImage }) {
                   <span className="text-white text-lg">✓</span>
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-gray-900">Tasks Automated</div>
+                  <div className="text-sm font-semibold text-white-900">Tasks Automated</div>
                   <div className="text-xs text-gray-500">47 tasks this week</div>
                 </div>
               </div>

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { User } from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { sendActivationOtp } from '../services/notifications/email.service.js';
 
 export const authRouter = Router();
 const cookieName = 'hostelos_session';
@@ -175,6 +176,9 @@ authRouter.post('/activate/request-otp', asyncHandler(async (req, res) => {
   if (!user) {
     throw Object.assign(new Error('No pre-loaded account found with this email. Please contact the Admin.'), { statusCode: 404 });
   }
+  if (!user.isActive) {
+    throw Object.assign(new Error('This account has been deactivated. Please contact the Admin.'), { statusCode: 403 });
+  }
   if (user.isActivated) {
     return res.status(400).json({ success: false, message: 'Account is already activated. Please log in directly.' });
   }
@@ -187,9 +191,17 @@ authRouter.post('/activate/request-otp', asyncHandler(async (req, res) => {
 
   console.log(`[Activation OTP for ${email}]: ${otpCode}`);
 
+  // Send real email with OTP code using nodemailer
+  try {
+    await sendActivationOtp(email, otpCode, user.name);
+  } catch (emailError) {
+    console.error(`Failed to send email to ${email}:`, emailError.message);
+    // Continue execution so the flashed fallback still works for testing
+  }
+
   res.json({
     success: true,
-    message: 'OTP flashed to your device successfully (for testing).',
+    message: 'OTP sent to your email and flashed to device (for testing).',
     otp: otpCode // Flashed/returned directly to device as requested
   });
 }));

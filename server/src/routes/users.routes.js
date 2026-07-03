@@ -67,14 +67,48 @@ function rowData(row) {
 }
 async function saveUser(input, importedBatchId) {
   const { password, ...data } = input;
-  const user = new User({ ...data, importedBatchId });
-  if (password) {
-    await user.setPassword(password);
-    user.isActivated = true;
-  } else {
-    user.isActivated = false;
+  
+  // Find if user already exists by email or phone (unique fields)
+  let user = null;
+  if (data.email) {
+    user = await User.findOne({ email: data.email });
   }
-  return user.save();
+  if (!user && data.phone) {
+    user = await User.findOne({ phone: data.phone });
+  }
+  
+  if (user) {
+    // If the user already exists and is inactive (soft-deleted), we reactivate them and update their fields
+    if (!user.isActive) {
+      Object.assign(user, data);
+      user.isActive = true;
+      user.isActivated = false; // reset activation
+      user.passwordHash = undefined; // clear old password hash
+      user.importedBatchId = importedBatchId;
+      if (password) {
+        await user.setPassword(password);
+        user.isActivated = true;
+      }
+      return user.save();
+    } else {
+      // If they are already active, throw a clean duplicate error
+      const field = user.email === data.email ? 'email' : 'phone';
+      const err = new Error(`Active account with this ${field} already exists`);
+      err.code = 11000;
+      err.keyPattern = { [field]: 1 };
+      throw err;
+    }
+  }
+
+  // Create new user
+  const newUser = new User({ ...data, importedBatchId });
+  if (password) {
+    await newUser.setPassword(password);
+    newUser.isActivated = true;
+  } else {
+    newUser.isActivated = false;
+  }
+  return newUser.save();
 }
 function notFound() { return Object.assign(new Error('User not found'), { statusCode: 404 }); }
 
@@ -113,7 +147,11 @@ usersRouter.get('/', asyncHandler(async (req, res) => {
   if (input.floor !== undefined) query.floor = input.floor;
   if (input.branch) query.branch = new RegExp(`^${escapeRegex(input.branch)}$`, 'i');
   if (input.role) query.role = input.role;
-  if (input.isActive !== undefined) query.isActive = input.isActive;
+  if (input.isActive !== undefined) {
+    query.isActive = input.isActive;
+  } else {
+    query.isActive = true;
+  }
   const skip = (input.page - 1) * input.limit; const sort = { [input.sortBy]: input.sortOrder === 'asc' ? 1 : -1 };
   const [users, total] = await Promise.all([User.find(query).sort(sort).skip(skip).limit(input.limit).lean(), User.countDocuments(query)]);
   res.json({ success: true, data: users, pagination: { page: input.page, limit: input.limit, total, pages: Math.ceil(total / input.limit) } });
@@ -143,6 +181,11 @@ usersRouter.patch('/:id/role', requireRole(['admin']), asyncHandler(async (req, 
   res.json({ success: true, data: user });
 }));
 usersRouter.delete('/:id', requireRole(['admin']), asyncHandler(async (req, res) => {
-  const user = await User.findByIdAndUpdate(objectId.parse(req.params.id), { isActive: false }, { new: true }).lean(); if (!user) throw notFound();
-  res.json({ success: true, data: user, message: 'User deactivated' });
+  const user = await User.findById(objectId.parse(req.params.id));
+  if (!user) throw notFound();
+  user.isActive = false;
+  user.isActivated = false;
+  user.passwordHash = undefined; // clear password
+  await user.save();
+  res.json({ success: true, data: user, message: 'User deactivated and unactivated' });
 }));

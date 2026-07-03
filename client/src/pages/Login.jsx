@@ -289,7 +289,7 @@ export default function Login() {
               </form>
               
               <p className="text-center text-sm text-gray-500 mt-4">
-                First-time resident?{' '}
+                First-time?{' '}
                 <button
                   type="button"
                   onClick={() => {
@@ -303,7 +303,7 @@ export default function Login() {
                 </button>
               </p>
               
-              <p className="text-center text-sm text-gray-500 mt-7">New to HostelOS? <Link to="/signup" className="text-indigo-600 dark:text-indigo-400 font-semibold">Create an account</Link></p>
+              {/* <p className="text-center text-sm text-gray-500 mt-7">New to HostelOS? <Link to="/signup" className="text-indigo-600 dark:text-indigo-400 font-semibold">Create an account</Link></p> */}
             </div>
           )}
         </motion.div>
