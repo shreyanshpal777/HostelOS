@@ -660,7 +660,7 @@ function EducationHub() {
             {recommendations.learningPlan && recommendations.learningPlan.length > 0 && (
               <div style={{ padding: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
                 <strong style={{ display: 'block', marginBottom: '8px', fontSize: '0.95rem', color: '#2563eb' }}>3-Step Learning Plan</strong>
-                <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', lineHeight: '1.6', color: 'var(--text)' }}>
                   {recommendations.learningPlan.map((step, idx) => (
                     <li key={idx} style={{ marginBottom: '8px' }}>{step}</li>
                   ))}
@@ -675,7 +675,7 @@ function EducationHub() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {recommendations.resources.map((resource, i) => (
                     <div key={i} style={{ padding: '10px 0', borderBottom: i < recommendations.resources.length - 1 ? '1px solid var(--line)' : 'none' }}>
-                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{resource.title}</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>{resource.title}</div>
                       <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: '2px' }}>{resource.description}</div>
                       {resource.url && (
                         <a href={resource.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', fontSize: '0.8rem', color: '#2563eb', fontWeight: 'bold', marginTop: '6px', textDecoration: 'none' }}>
@@ -752,7 +752,7 @@ function ImportExcel() {
       <form onSubmit={handleUpload} className="saas-form">
         <div className="excel-upload-container">
           <FileSpreadsheet size={40} className="excel-upload-icon" />
-          <p style={{ fontWeight: 600, margin: 0 }}>
+          <p style={{ fontWeight: 600, margin: 0, color: 'var(--text)' }}>
             {file ? file.name : 'Choose file or drag here'}
           </p>
           <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
